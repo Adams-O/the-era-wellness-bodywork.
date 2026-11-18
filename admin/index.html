@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (() => {
+        let savedTheme = null;
+        try {
+          savedTheme = localStorage.getItem('era-theme');
+        } catch (error) {
+          console.warn('Theme preference could not be read before rendering.', error);
+        }
+        const theme = savedTheme === 'light' || savedTheme === 'dark'
+          ? savedTheme
+          : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.dataset.bsTheme = theme;
+      })();
+    </script>
+    <title>Admin | The Era Wellness & Bodywork</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../styles.css" />
+    <link rel="stylesheet" href="admin.css" />
+    <script src="../theme.js" defer></script>
+  </head>
+  <body class="admin-body">
+    <div class="admin-shell">
+      <aside class="admin-sidebar">
+        <div class="brand-block">
+          <span class="brand-mark">TE</span>
+          <div>
+            <strong>The Era</strong>
+            <small>Owner Portal</small>
+          </div>
+        </div>
+        <nav class="admin-nav">
+          <button class="nav-tab is-active" data-tab="overview">Overview</button>
+          <button class="nav-tab" data-tab="services">Services</button>
+          <button class="nav-tab" data-tab="gallery">Gallery</button>
+          <button class="nav-tab" data-tab="testimonials">Testimonials</button>
+          <button class="nav-tab" data-tab="content">Website Content</button>
+          <button class="nav-tab" data-tab="regions">Regional Settings</button>
+          <button class="nav-tab" data-tab="bookings">Bookings</button>
+        </nav>
+        <button id="logout-button" class="btn btn-secondary logout-btn" type="button">Logout</button>
+      </aside>
+
+      <main class="admin-main">
+        <header class="admin-header">
+          <span class="admin-header-label">Owner portal</span>
+          <button class="theme-toggle" type="button" aria-label="Switch color theme" aria-pressed="false">
+            <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="4"></circle>
+              <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"></path>
+            </svg>
+            <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20.2 15.4A8.5 8.5 0 0 1 8.6 3.8 8.5 8.5 0 1 0 20.2 15.4Z"></path>
+            </svg>
+          </button>
+        </header>
+        <section id="login-screen" class="admin-panel active-panel">
+          <div class="auth-card">
+            <p class="eyebrow">Secure access</p>
+            <h1>Admin login</h1>
+            <form id="admin-login-form" class="admin-form">
+              <div class="field-group">
+                <label for="admin-email">Email</label>
+                <input id="admin-email" name="email" type="email" required />
+              </div>
+              <div class="field-group">
+                <label for="admin-password">Password</label>
+                <input id="admin-password" name="password" type="password" required />
+              </div>
+              <button type="submit" class="btn btn-primary w-100">Sign in</button>
+            </form>
+            <div id="auth-message" class="auth-message" aria-live="polite"></div>
+            <p class="demo-hint">Sign in with the owner account created in your Supabase project. Access is limited to accounts added to the administrator allowlist.</p>
+          </div>
+        </section>
+
+        <section id="overview-screen" class="admin-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Dashboard overview</p>
+              <h2>Welcome back, Molly.</h2>
+            </div>
+            <button id="refresh-metrics" class="btn btn-secondary" type="button">Refresh</button>
+          </div>
+          <div class="stats-grid">
+            <div class="metric-card">
+              <span>Total services</span>
+              <strong id="metric-services">0</strong>
+            </div>
+            <div class="metric-card">
+              <span>Gallery photographs</span>
+              <strong id="metric-gallery">0</strong>
+            </div>
+            <div class="metric-card">
+              <span>Testimonials</span>
+              <strong id="metric-testimonials">0</strong>
+            </div>
+            <div class="metric-card">
+              <span>Booking enquiries (Netlify)</span>
+              <strong id="metric-bookings">0</strong>
+            </div>
+          </div>
+          <div class="panel-subgrid">
+            <div class="panel-card">
+              <h3>Recent bookings</h3>
+              <ul id="recent-bookings" class="list-plain"></ul>
+            </div>
+            <div class="panel-card">
+              <h3>Quick actions</h3>
+              <div class="quick-actions">
+                <button class="btn btn-primary" data-tab="services" type="button">Add service</button>
+                <button class="btn btn-primary" data-tab="gallery" type="button">Upload photo</button>
+                <button class="btn btn-primary" data-tab="testimonials" type="button">Add review</button>
+                <button class="btn btn-primary" data-tab="content" type="button">Update content</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="services-screen" class="admin-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Services management</p>
+              <h2>Service catalogue</h2>
+            </div>
+          </div>
+          <div class="two-column-layout">
+            <form id="service-form" class="admin-form panel-card">
+              <h3>Add or edit service</h3>
+              <input type="hidden" id="service-id" />
+              <div class="field-group">
+                <label for="service-name">Service name</label>
+                <input id="service-name" name="name" type="text" required />
+              </div>
+              <div class="field-group">
+                <label for="service-description">Description</label>
+                <textarea id="service-description" name="description" rows="4" required></textarea>
+              </div>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label for="service-price-gh">Ghana price (GHS)</label>
+                  <input id="service-price-gh" name="price_gh" type="number" min="0" step="0.01" />
+                </div>
+                <div class="col-md-6">
+                  <label for="service-price-ng">Nigeria price (NGN)</label>
+                  <input id="service-price-ng" name="price_ng" type="number" min="0" step="0.01" />
+                </div>
+              </div>
+              <div class="field-group">
+                <label for="service-image">Image URL</label>
+                <input id="service-image" name="image" type="url" placeholder="https://..." />
+              </div>
+              <div class="checkbox-row">
+                <label><input id="service-active" type="checkbox" checked /> Active</label>
+              </div>
+              <button type="submit" class="btn btn-primary">Save service</button>
+              <button id="cancel-service-edit" type="button" class="btn btn-secondary hidden">Cancel</button>
+            </form>
+            <div class="panel-card">
+              <h3>Current services</h3>
+              <div id="service-list" class="list-stack"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="gallery-screen" class="admin-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Gallery management</p>
+              <h2>Photography library</h2>
+            </div>
+          </div>
+          <div class="two-column-layout">
+            <form id="gallery-form" class="admin-form panel-card">
+              <h3>Add or edit gallery image</h3>
+              <input type="hidden" id="gallery-id" />
+              <div class="field-group">
+                <label for="gallery-image-url">Image URL</label>
+                <input id="gallery-image-url" name="image" type="url" />
+              </div>
+              <div class="field-group">
+                <label for="gallery-image-file">Or upload an image to Supabase Storage</label>
+                <input id="gallery-image-file" name="image-file" type="file" accept="image/*" />
+              </div>
+              <div class="field-group">
+                <label for="gallery-caption">Caption</label>
+                <input id="gallery-caption" name="caption" type="text" />
+              </div>
+              <div class="checkbox-row">
+                <label><input id="gallery-published" type="checkbox" checked /> Published</label>
+              </div>
+              <button type="submit" class="btn btn-primary">Save image</button>
+              <button id="cancel-gallery-edit" type="button" class="btn btn-secondary hidden">Cancel</button>
+            </form>
+            <div class="panel-card">
+              <h3>Gallery items</h3>
+              <div id="gallery-list" class="list-stack"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="testimonials-screen" class="admin-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Testimonials</p>
+              <h2>Review approvals</h2>
+            </div>
+          </div>
+          <div class="two-column-layout">
+            <form id="testimonial-form" class="admin-form panel-card">
+              <h3>Add or edit review</h3>
+              <input type="hidden" id="testimonial-id" />
+              <div class="field-group">
+                <label for="reviewer-name">Reviewer name</label>
+                <input id="reviewer-name" name="name" type="text" required />
+              </div>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label for="review-date">Date</label>
+                  <input id="review-date" name="date" type="date" />
+                </div>
+                <div class="col-md-6">
+                  <label for="review-rating">Rating</label>
+                  <input id="review-rating" name="rating" type="number" min="1" max="5" step="1" />
+                </div>
+              </div>
+              <div class="field-group">
+                <label for="review-source">Source</label>
+                <select id="review-source" name="source">
+                  <option value="Google">Google</option>
+                  <option value="Instagram">Instagram</option>
+                  <option value="Direct Client">Direct Client</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="review-url">Original review URL</label>
+                <input id="review-url" name="url" type="url" placeholder="https://..." />
+              </div>
+              <div class="field-group">
+                <label for="review-text">Review text</label>
+                <textarea id="review-text" name="text" rows="4" required></textarea>
+              </div>
+              <div class="checkbox-row">
+                <label><input id="review-approved" type="checkbox" checked /> Approved</label>
+              </div>
+              <button type="submit" class="btn btn-primary">Save review</button>
+              <button id="cancel-review-edit" type="button" class="btn btn-secondary hidden">Cancel</button>
+            </form>
+            <div class="panel-card">
+              <h3>All reviews</h3>
+              <div id="testimonial-list" class="list-stack"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="content-screen" class="admin-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Website content</p>
+              <h2>Brand messaging</h2>
+            </div>
+          </div>
+          <form id="content-form" class="admin-form panel-card">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label for="content-headline">Homepage headline</label>
+                <input id="content-headline" type="text" />
+              </div>
+              <div class="col-md-6">
+                <label for="content-about-title">About section title</label>
+                <input id="content-about-title" type="text" />
+              </div>
+              <div class="col-md-6">
+                <label for="content-instagram">Instagram URL</label>
+                <input id="content-instagram" type="url" />
+              </div>
+              <div class="col-md-6">
+                <label for="content-google-maps">Google Maps review URL</label>
+                <input id="content-google-maps" type="url" placeholder="https://..." />
+              </div>
+            </div>
+            <div class="field-group">
+              <label for="content-intro">Homepage introduction</label>
+              <textarea id="content-intro" rows="4"></textarea>
+            </div>
+            <div class="field-group">
+              <label for="about-section">About section</label>
+              <textarea id="about-section" rows="5"></textarea>
+            </div>
+            <div class="field-group">
+              <label for="why-choose-section">Why choose us</label>
+              <textarea id="why-choose-section" rows="5"></textarea>
+            </div>
+            <div class="field-group">
+              <label for="booking-policy-text">Booking policy</label>
+              <textarea id="booking-policy-text" rows="4"></textarea>
+            </div>
+            <div class="field-group">
+              <label for="footer-copy-text">Footer text</label>
+              <textarea id="footer-copy-text" rows="3"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Save website content</button>
+          </form>
+        </section>
+
+        <section id="regions-screen" class="admin-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Regional settings</p>
+              <h2>Country-specific details</h2>
+            </div>
+          </div>
+          <div class="two-column-layout">
+            <form id="region-form" class="admin-form panel-card">
+              <h3>Ghana</h3>
+              <div class="field-group">
+                <label for="ghana-location">Service locations</label>
+                <input id="ghana-location" type="text" />
+              </div>
+              <div class="field-group">
+                <label for="ghana-contact-copy-input">Contact description</label>
+                <input id="ghana-contact-copy-input" type="text" />
+              </div>
+              <div class="field-group">
+                <label for="ghana-whatsapp-input">WhatsApp number</label>
+                <input id="ghana-whatsapp-input" type="tel" />
+              </div>
+              <div class="field-group">
+                <label for="ghana-email-input">Email</label>
+                <input id="ghana-email-input" type="email" />
+              </div>
+              <div class="field-group">
+                <label for="ghana-currency">Currency</label>
+                <input id="ghana-currency" type="text" value="GHS / GH₵" />
+              </div>
+              <div class="field-group">
+                <label for="ghana-booking">Booking instructions</label>
+                <textarea id="ghana-booking" rows="3"></textarea>
+              </div>
+              <h3>Nigeria</h3>
+              <div class="field-group">
+                <label for="nigeria-location">Service locations</label>
+                <input id="nigeria-location" type="text" />
+              </div>
+              <div class="field-group">
+                <label for="nigeria-contact-copy-input">Contact description</label>
+                <input id="nigeria-contact-copy-input" type="text" />
+              </div>
+              <div class="field-group">
+                <label for="nigeria-whatsapp-input">WhatsApp number</label>
+                <input id="nigeria-whatsapp-input" type="tel" />
+              </div>
+              <div class="field-group">
+                <label for="nigeria-email-input">Email</label>
+                <input id="nigeria-email-input" type="email" />
+              </div>
+              <div class="field-group">
+                <label for="nigeria-currency">Currency</label>
+                <input id="nigeria-currency" type="text" value="NGN / ₦" />
+              </div>
+              <div class="field-group">
+                <label for="nigeria-booking">Booking instructions</label>
+                <textarea id="nigeria-booking" rows="3"></textarea>
+              </div>
+              <button type="submit" class="btn btn-primary">Save regional settings</button>
+            </form>
+            <div class="panel-card">
+              <h3>Preview</h3>
+              <div id="region-preview" class="region-preview"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="bookings-screen" class="admin-panel">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Bookings</p>
+              <h2>Enquiries</h2>
+            </div>
+          </div>
+          <div class="panel-card">
+            <div id="admin-bookings-list" class="list-stack"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="admin-toast-container" class="admin-toast-container" aria-live="polite"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../supabase-config.js"></script>
+    <script src="admin.js"></script>
+  </body>
+</html>

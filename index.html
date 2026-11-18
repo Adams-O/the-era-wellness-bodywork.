@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (() => {
+        let savedTheme = null;
+        try {
+          savedTheme = localStorage.getItem('era-theme');
+        } catch (error) {
+          console.warn('Theme preference could not be read before rendering.', error);
+        }
+        const theme = savedTheme === 'light' || savedTheme === 'dark'
+          ? savedTheme
+          : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.dataset.bsTheme = theme;
+      })();
+    </script>
+    <meta
+      name="description"
+      content="The Era Wellness & Bodywork offers luxury massage, wellness and mobile bodywork services in Ghana and Nigeria."
+    />
+    <title>The Era Wellness & Bodywork</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="theme.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header" id="top">
+      <nav class="navbar navbar-expand-lg">
+        <div class="container-xl nav-shell">
+          <a class="navbar-brand" href="#top">
+            <span class="brand-mark">TE</span>
+            <span class="brand-text">
+              <strong>The Era</strong>
+              <small>Wellness &amp; Bodywork</small>
+            </span>
+          </a>
+          <button
+            class="navbar-toggler"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#mainNav"
+            aria-controls="mainNav"
+            aria-expanded="false"
+            aria-label="Toggle navigation"
+          >
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+          <div class="collapse navbar-collapse" id="mainNav">
+            <ul class="navbar-nav ms-auto align-items-lg-center">
+              <li class="nav-item"><a class="nav-link" href="#services">Services</a></li>
+              <li class="nav-item"><a class="nav-link" href="#about">About</a></li>
+              <li class="nav-item"><a class="nav-link" href="#gallery">Gallery</a></li>
+              <li class="nav-item"><a class="nav-link" href="#reviews">Reviews</a></li>
+              <li class="nav-item"><a class="nav-link" href="#contact">Contact</a></li>
+              <li class="nav-item"><a class="nav-link cta-link" href="#booking">Book Now</a></li>
+              <li class="nav-item theme-switcher-item">
+                <button class="theme-toggle" type="button" aria-label="Switch color theme" aria-pressed="false">
+                  <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="12" r="4"></circle>
+                    <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"></path>
+                  </svg>
+                  <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M20.2 15.4A8.5 8.5 0 0 1 8.6 3.8 8.5 8.5 0 1 0 20.2 15.4Z"></path>
+                  </svg>
+                </button>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero-section">
+        <div class="hero-backdrop"></div>
+        <div class="container-xl hero-content">
+          <div class="row align-items-center g-5">
+            <div class="col-lg-7">
+              <p class="eyebrow">Luxury mobile massage & wellness</p>
+              <div class="hero-wordmark" aria-hidden="true">THE ERA</div>
+              <p class="hero-signature">Wellness &amp; Bodywork</p>
+              <h1 id="homepage-headline" class="hero-headline">Reset, restore and return to balance.</h1>
+              <p class="lead" id="homepage-intro">
+                Bespoke massage and bodywork experiences designed to help you unwind, recover, and feel deeply cared for in the comfort of your home, hotel, or private retreat.
+              </p>
+              <div class="hero-actions">
+                <a class="btn btn-primary" href="#booking">Book an Appointment</a>
+                <a class="btn btn-secondary" href="#services">Explore Services</a>
+              </div>
+              <div class="hero-meta d-flex flex-wrap align-items-center gap-3 mt-4">
+                <span>Ghana • Kumasi</span>
+                <span>Nigeria • Lagos &amp; Ilorin</span>
+              </div>
+            </div>
+            <div class="col-lg-5">
+              <div class="hero-card">
+                <div class="card-badge">Curated wellness</div>
+                <div class="mini-stat">
+                  <strong>50%</strong>
+                  <span>deposit required to secure booking</span>
+                </div>
+                <div class="mini-stat">
+                  <strong>Mobile</strong>
+                  <span>Luxury care in Ghana and Nigeria</span>
+                </div>
+                <div class="mini-stat">
+                  <strong>Trusted</strong>
+                  <span>Owner-managed booking and service care</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <a class="scroll-cue" href="#services">
+            <span>Scroll to discover</span>
+            <span class="scroll-cue-line" aria-hidden="true"></span>
+          </a>
+        </div>
+      </section>
+
+      <section class="info-strip">
+        <div class="container-xl">
+          <div class="row text-center g-3">
+            <div class="col-md-4"><span>Luxury massage</span></div>
+            <div class="col-md-4"><span>Wellness bodywork</span></div>
+            <div class="col-md-4"><span>Mobile concierge care</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="services-section section-space" id="services">
+        <div class="container-xl">
+          <div class="heading-row">
+            <p class="eyebrow">Signature services</p>
+            <h2>Thoughtful treatments for total restoration.</h2>
+          </div>
+          <div id="services-grid" class="services-grid"></div>
+        </div>
+      </section>
+
+      <section class="about-section section-space" id="about">
+        <div class="container-xl">
+          <div class="row align-items-center g-5">
+            <div class="col-lg-6">
+              <div class="image-frame single-image large-image">
+                <img
+                  src="https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&amp;fit=crop&amp;w=1000&amp;q=80"
+                  alt="A calm, private wellness treatment space"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </div>
+            </div>
+            <div class="col-lg-6">
+              <p class="eyebrow">About us</p>
+              <h2 id="about-section-title">Personalised wellness, designed around your needs.</h2>
+              <div id="about-section-content" class="rich-text"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="why-us section-space">
+        <div class="container-xl">
+          <div class="heading-row centered">
+            <p class="eyebrow">Why choose us</p>
+            <h2 id="why-choose-title">A more elevated approach to rest.</h2>
+          </div>
+          <div id="why-choose-items" class="why-grid"></div>
+        </div>
+      </section>
+
+      <section class="gallery-section section-space" id="gallery">
+        <div class="container-xl">
+          <div class="heading-row">
+            <p class="eyebrow">Wellness in motion</p>
+            <h2>Moments of calm, comfort and care.</h2>
+          </div>
+          <div id="gallery-grid" class="gallery-grid" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="testimonials-section section-space" id="reviews">
+        <div class="container-xl">
+          <div class="heading-row centered">
+            <p class="eyebrow">Testimonials</p>
+            <h2>Clients return for the ritual, the care and the results.</h2>
+            <a id="google-maps-review-link" class="btn btn-secondary hidden" href="#" target="_blank" rel="noopener noreferrer">Read or leave a Google review</a>
+          </div>
+          <div id="testimonials-grid" class="testimonials-grid"></div>
+        </div>
+      </section>
+
+      <section class="booking-section section-space" id="booking">
+        <div class="container-xl">
+          <div class="booking-shell">
+            <div class="booking-copy">
+              <p class="eyebrow">Book your session</p>
+              <h2>Reserve a treatment tailored to your rhythm.</h2>
+              <div id="booking-policy" class="booking-policy"></div>
+            </div>
+            <div class="booking-form-card">
+              <h3>Send a booking enquiry</h3>
+              <form
+                id="booking-form"
+                name="booking-enquiry"
+                method="POST"
+                action="/?booking=success#booking"
+                data-netlify="true"
+                netlify-honeypot="bot-field"
+              >
+                <input type="hidden" name="form-name" value="booking-enquiry" />
+                <p class="hidden">
+                  <label>Leave this field empty: <input name="bot-field" /></label>
+                </p>
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label for="booking-name">Full name</label>
+                    <input id="booking-name" name="name" type="text" required />
+                  </div>
+                  <div class="col-md-6">
+                    <label for="booking-email">Email</label>
+                    <input id="booking-email" name="email" type="email" required />
+                  </div>
+                  <div class="col-md-6">
+                    <label for="booking-country">Country</label>
+                    <select id="booking-country" name="country" required>
+                      <option value="Ghana">Ghana</option>
+                      <option value="Nigeria">Nigeria</option>
+                    </select>
+                  </div>
+                  <div class="col-md-6">
+                    <label for="booking-service">Service</label>
+                    <select id="booking-service" name="service" required></select>
+                  </div>
+                  <div class="col-md-6">
+                    <label for="booking-phone">WhatsApp number</label>
+                    <input id="booking-phone" name="phone" type="tel" required />
+                  </div>
+                  <div class="col-md-6">
+                    <label for="booking-date">Preferred date</label>
+                    <input id="booking-date" name="preferred-date" type="date" required />
+                  </div>
+                  <div class="col-md-6">
+                    <label for="booking-time">Preferred time</label>
+                    <input id="booking-time" name="preferred-time" type="time" required />
+                  </div>
+                  <div class="col-md-6">
+                    <label for="booking-session-type">Session location type</label>
+                    <select id="booking-session-type" name="session-type" required>
+                      <option value="Home">Home</option>
+                      <option value="Hotel">Hotel</option>
+                    </select>
+                  </div>
+                  <div class="col-12">
+                    <label for="booking-location">Home or hotel address / area</label>
+                    <input id="booking-location" name="location" type="text" required />
+                  </div>
+                  <div class="col-12">
+                    <label for="booking-notes">Notes</label>
+                    <textarea id="booking-notes" name="notes" rows="4" placeholder="Share any special requests."></textarea>
+                  </div>
+                  <div class="col-12 checkbox-row">
+                    <label for="deposit-policy">
+                      <input id="deposit-policy" name="deposit-policy-acknowledged" type="checkbox" value="yes" required />
+                      I understand a 50% deposit is required to secure a confirmed booking.
+                    </label>
+                  </div>
+                  <div class="col-12">
+                    <button id="booking-submit" class="btn btn-primary w-100" type="submit">Send enquiry</button>
+                    <p id="booking-form-status" class="form-status" role="status" aria-live="polite"></p>
+                    <a id="booking-whatsapp" class="btn btn-secondary w-100 hidden" href="#" target="_blank" rel="noopener noreferrer">Continue on WhatsApp</a>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="contact-section section-space" id="contact">
+        <div class="container-xl">
+          <div class="heading-row centered">
+            <p class="eyebrow">Contact</p>
+            <h2>Let’s plan your next reset.</h2>
+          </div>
+          <div class="contact-grid">
+            <div class="contact-card">
+              <h3>Ghana</h3>
+              <p id="ghana-contact-copy"></p>
+              <a id="ghana-whatsapp" href="#" target="_blank" rel="noreferrer">WhatsApp</a>
+              <a id="ghana-email" class="hidden" href="#">Email</a>
+            </div>
+            <div class="contact-card">
+              <h3>Nigeria</h3>
+              <p id="nigeria-contact-copy"></p>
+              <a id="nigeria-whatsapp" href="#" target="_blank" rel="noreferrer">WhatsApp</a>
+              <a id="nigeria-email" href="#" target="_blank" rel="noreferrer">Email</a>
+            </div>
+            <div class="contact-card">
+              <h3>Instagram</h3>
+              <p>See our latest rituals, behind-the-scenes moments and wellness inspiration.</p>
+              <a id="instagram-link" href="#" target="_blank" rel="noreferrer">Follow on Instagram</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container-xl footer-shell">
+        <div>
+          <strong>The Era Wellness &amp; Bodywork</strong>
+          <p id="footer-copy"></p>
+        </div>
+        <div class="footer-meta">
+          <span>Luxury mobile massage</span>
+          <span>Ghana &amp; Nigeria</span>
+          <a id="footer-instagram" href="#" target="_blank" rel="noreferrer">Instagram</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
