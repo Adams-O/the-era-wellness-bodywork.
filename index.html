@@ -160,6 +160,8 @@
                 <img
                   src="https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&amp;fit=crop&amp;w=1000&amp;q=80"
                   alt="A calm, private wellness treatment space"
+                  width="1000"
+                  height="1250"
                   loading="lazy"
                   decoding="async"
                 />
@@ -193,6 +195,18 @@
           <div id="gallery-grid" class="gallery-grid" aria-live="polite"></div>
         </div>
       </section>
+
+      <dialog id="gallery-lightbox" class="gallery-lightbox" aria-label="Gallery image preview">
+        <button class="gallery-lightbox-close" type="button" aria-label="Close image preview">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6 6 12 12M18 6 6 18"></path>
+          </svg>
+        </button>
+        <figure>
+          <img id="gallery-lightbox-image" alt="" />
+          <figcaption id="gallery-lightbox-caption"></figcaption>
+        </figure>
+      </dialog>
 
       <section class="testimonials-section section-space" id="reviews">
         <div class="container-xl">
@@ -229,27 +243,37 @@
                 </p>
                 <div class="row g-3">
                   <div class="col-md-6">
-                    <label for="booking-name">Full name</label>
-                    <input id="booking-name" name="name" type="text" required />
+                    <div class="floating-field">
+                      <input id="booking-name" name="name" type="text" placeholder=" " required />
+                      <label for="booking-name">Full name</label>
+                    </div>
                   </div>
                   <div class="col-md-6">
-                    <label for="booking-email">Email</label>
-                    <input id="booking-email" name="email" type="email" required />
+                    <div class="floating-field">
+                      <input id="booking-email" name="email" type="email" placeholder=" " required />
+                      <label for="booking-email">Email</label>
+                    </div>
                   </div>
-                  <div class="col-md-6">
-                    <label for="booking-country">Country</label>
-                    <select id="booking-country" name="country" required>
-                      <option value="Ghana">Ghana</option>
-                      <option value="Nigeria">Nigeria</option>
-                    </select>
-                  </div>
+                  <fieldset class="booking-country-field col-md-6">
+                    <legend>Country</legend>
+                    <div class="country-segmented">
+                      <label class="country-option" for="booking-country">
+                        <input id="booking-country" name="country" type="radio" value="Ghana" required checked />
+                        <span>Ghana</span>
+                      </label>
+                      <label class="country-option" for="booking-country-nigeria">
+                        <input id="booking-country-nigeria" name="country" type="radio" value="Nigeria" />
+                        <span>Nigeria</span>
+                      </label>
+                    </div>
+                  </fieldset>
                   <div class="col-md-6">
                     <label for="booking-service">Service</label>
                     <select id="booking-service" name="service" required></select>
                   </div>
-                  <div class="col-md-6">
+                  <div class="col-md-6 floating-field">
+                    <input id="booking-phone" name="phone" type="tel" placeholder=" " required />
                     <label for="booking-phone">WhatsApp number</label>
-                    <input id="booking-phone" name="phone" type="tel" required />
                   </div>
                   <div class="col-md-6">
                     <label for="booking-date">Preferred date</label>
@@ -267,8 +291,10 @@
                     </select>
                   </div>
                   <div class="col-12">
-                    <label for="booking-location">Home or hotel address / area</label>
-                    <input id="booking-location" name="location" type="text" required />
+                    <div class="floating-field">
+                      <input id="booking-location" name="location" type="text" placeholder=" " required />
+                      <label for="booking-location">Home or hotel address / area</label>
+                    </div>
                   </div>
                   <div class="col-12">
                     <label for="booking-notes">Notes</label>
@@ -322,18 +348,43 @@
     </main>
 
     <footer class="site-footer">
-      <div class="container-xl footer-shell">
-        <div>
+      <div class="container-xl footer-layout">
+        <div class="footer-brand">
           <strong>The Era Wellness &amp; Bodywork</strong>
           <p id="footer-copy"></p>
         </div>
-        <div class="footer-meta">
-          <span>Luxury mobile massage</span>
-          <span>Ghana &amp; Nigeria</span>
+        <div class="footer-column">
+          <p class="eyebrow">Navigate</p>
+          <a href="#services">Services</a>
+          <a href="#about">About</a>
+          <a href="#booking">Book a session</a>
+        </div>
+        <div class="footer-column">
+          <p class="eyebrow">Ghana &amp; Nigeria</p>
+          <a href="#contact">Ghana</a>
+          <a href="#contact">Nigeria</a>
+        </div>
+        <div class="footer-column">
+          <p class="eyebrow">Follow</p>
           <a id="footer-instagram" href="#" target="_blank" rel="noreferrer">Instagram</a>
         </div>
       </div>
     </footer>
+
+    <a
+      id="floating-whatsapp"
+      class="floating-whatsapp hidden"
+      href="#contact"
+      aria-label="Message The Era Wellness &amp; Bodywork on WhatsApp"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M20.2 11.8a8.2 8.2 0 0 1-12.1 7.2L3 20l1.1-4.9a8.2 8.2 0 1 1 16.1-3.3Z"></path>
+        <path d="M8.2 8.1c.2-.5.4-.5.7-.5h.5c.2 0 .4.1.5.4l.7 1.7c.1.2.1.4 0 .6l-.5.7c-.2.2-.2.4 0 .6.4.7 1.1 1.4 1.9 1.8.2.1.4.1.6-.1l.7-.8c.2-.2.4-.2.7-.1l1.6.8c.2.1.3.2.3.4 0 .3-.2 1.1-.7 1.4-.4.4-1 .6-1.6.5-.5-.1-1.2-.3-2.1-.7a8.4 8.4 0 0 1-3-2.6c-.8-1-1.3-2.1-1.4-2.8-.1-.6.1-1.1.4-1.3Z"></path>
+      </svg>
+      <span>WhatsApp</span>
+    </a>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

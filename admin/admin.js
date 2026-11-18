@@ -184,7 +184,7 @@ function renderTestimonialsList() {
         <strong>${escapeHtml(review.name)}</strong>
         <small>${review.approved ? 'Approved' : 'Hidden'}</small>
       </div>
-      <div class="muted">${escapeHtml(review.source)} • ${review.rating || 5}★</div>
+      <div class="muted">${escapeHtml(review.source)} • Rating: ${review.rating || 5}/5</div>
       <div class="muted">${escapeHtml(review.text)}</div>
       <div class="list-item-actions">
         <button type="button" class="btn btn-secondary edit-review" data-id="${escapeHtml(review.id)}">Edit</button>

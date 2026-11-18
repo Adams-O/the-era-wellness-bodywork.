@@ -231,16 +231,66 @@ function renderGallery() {
   const content = getContent();
   root.innerHTML = (content.gallery || [])
     .filter((photo) => photo.published)
-    .map(
-      (photo) => `
+    .map((photo) => {
+      const caption = photo.caption || 'The Era experience';
+      const imageUrl = safeExternalUrl(photo.image);
+      return `
         <figure class="gallery-item">
-          ${renderPublicImage(photo.image, photo.caption || 'The Era experience', 'gallery-image')}
-          <figcaption class="caption">${escapeHtml(photo.caption || 'The Era experience')}</figcaption>
+          <button
+            class="gallery-open"
+            type="button"
+            aria-label="View image: ${escapeHtml(caption)}"
+            data-caption="${escapeHtml(caption)}"
+            ${imageUrl ? '' : 'disabled'}
+          >
+            ${renderPublicImage(imageUrl, caption, 'gallery-image')}
+          </button>
+          <figcaption class="caption">${escapeHtml(caption)}</figcaption>
         </figure>
-      `
-    )
+      `;
+    })
     .join('');
   root.setAttribute('aria-busy', 'false');
+}
+
+function initializeGalleryLightbox() {
+  const gallery = document.getElementById('gallery-grid');
+  const dialog = document.getElementById('gallery-lightbox');
+  const preview = document.getElementById('gallery-lightbox-image');
+  const caption = document.getElementById('gallery-lightbox-caption');
+  const closeButton = dialog?.querySelector('.gallery-lightbox-close');
+  if (
+    !gallery ||
+    !dialog ||
+    dialog.tagName !== 'DIALOG' ||
+    typeof dialog.showModal !== 'function' ||
+    !preview ||
+    !caption ||
+    !closeButton
+  ) return;
+
+  gallery.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element)) return;
+    const trigger = event.target.closest('.gallery-open');
+    if (!(trigger instanceof HTMLButtonElement) || trigger.disabled) return;
+
+    const image = trigger.querySelector('img');
+    if (!image) return;
+    preview.src = image.currentSrc || image.src;
+    preview.alt = image.alt;
+    caption.textContent = trigger.dataset.caption || image.alt;
+    dialog.showModal();
+  });
+
+  closeButton.addEventListener('click', () => dialog.close());
+  dialog.addEventListener('click', (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+  dialog.addEventListener('close', () => {
+    preview.removeAttribute('src');
+    preview.alt = '';
+    caption.textContent = '';
+  });
 }
 
 function renderTestimonials() {
@@ -474,6 +524,28 @@ function updateBookingWhatsApp() {
   link.classList.remove('hidden');
 }
 
+function initializeFloatingWhatsApp() {
+  const link = document.getElementById('floating-whatsapp');
+  if (!link) return;
+
+  const bookingForm = document.getElementById('booking-form');
+  const updateLink = () => {
+    const country = bookingForm ? new FormData(bookingForm).get('country') : 'Ghana';
+    const region = country === 'Nigeria' ? getContent().regions.nigeria : getContent().regions.ghana;
+    const number = String(region.whatsapp || '').replace(/\D/g, '');
+    if (!number) {
+      link.removeAttribute('href');
+      link.classList.add('hidden');
+      return;
+    }
+    link.href = `https://wa.me/${number}`;
+    link.classList.remove('hidden');
+  };
+
+  bookingForm?.addEventListener('change', updateLink);
+  updateLink();
+}
+
 async function setupPublicSite() {
   showContentSkeletons();
   try {
@@ -483,12 +555,14 @@ async function setupPublicSite() {
   }
   renderServices();
   renderGallery();
+  initializeGalleryLightbox();
   renderTestimonials();
   renderSiteContent();
   populateServiceOptions();
   initializeScrollNav();
   initializeScrollReveal();
   initializeBookingForm();
+  initializeFloatingWhatsApp();
 }
 
 document.addEventListener('DOMContentLoaded', () => {

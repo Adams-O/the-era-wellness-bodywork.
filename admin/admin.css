@@ -814,3 +814,153 @@
     animation-duration: 0.01ms !important;
   }
 }
+
+.admin-body {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.admin-sidebar {
+  min-height: 100vh;
+  overflow-y: auto;
+  border-right-color: var(--border);
+  background: var(--surface);
+}
+
+.admin-main {
+  min-width: 0;
+  background: var(--bg);
+}
+
+.admin-header {
+  border-bottom-color: var(--border);
+}
+
+.admin-panel h1,
+.admin-panel h2,
+.admin-panel h3 {
+  text-wrap: balance;
+}
+
+.panel-header {
+  align-items: flex-end;
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-header h2 {
+  margin-bottom: 0;
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1.08;
+}
+
+.metric-card,
+.panel-card,
+.auth-card {
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.metric-card {
+  min-height: 136px;
+  padding: var(--space-3);
+}
+
+.metric-card span {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.panel-card {
+  padding: var(--space-3);
+}
+
+.admin-body input::placeholder,
+.admin-body textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.82;
+}
+
+.admin-body select option {
+  background: var(--input-bg);
+  color: var(--text);
+}
+
+.admin-body input[type="file"]::file-selector-button {
+  min-height: 36px;
+  margin-right: var(--space-2);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.admin-body .btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+}
+
+.admin-body .delete-service,
+.admin-body .delete-gallery,
+.admin-body .delete-review {
+  border: 1px solid var(--error);
+  background: transparent;
+  color: var(--error);
+}
+
+.admin-body .delete-service:hover,
+.admin-body .delete-gallery:hover,
+.admin-body .delete-review:hover {
+  border-color: var(--error);
+  background: var(--error);
+  color: var(--surface);
+}
+
+.admin-body .admin-nav,
+.admin-body .nav-tab,
+.admin-body .metric-card,
+.admin-body .panel-card,
+.admin-body .list-item {
+  transition: var(--theme-transition);
+}
+
+@media (max-width: 991px) {
+  .admin-sidebar {
+    min-height: 0;
+  }
+
+  .admin-nav {
+    scroll-snap-type: x proximity;
+  }
+
+  .nav-tab {
+    scroll-snap-align: start;
+  }
+
+  .panel-header {
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 767px) {
+  .metric-card,
+  .panel-card {
+    padding: 20px;
+  }
+
+  .panel-header {
+    padding-bottom: 16px;
+  }
+
+  .admin-toast-container {
+    right: 16px;
+    bottom: 16px;
+  }
+}
