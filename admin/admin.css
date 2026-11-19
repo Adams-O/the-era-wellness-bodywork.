@@ -37,7 +37,7 @@
   align-items: center;
   justify-content: center;
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 700;
   letter-spacing: 0.08em;
 }
@@ -74,7 +74,7 @@
 
 .nav-tab.is-active {
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-text);
   opacity: 1;
 }
 
@@ -259,7 +259,7 @@
 
 .list-item small,
 .list-item .muted {
-  color: var(--text-muted);
+  color: var(--text-muted-alt);
 }
 
 .region-preview {
@@ -377,7 +377,7 @@
 .nav-tab.is-active {
   border-color: var(--accent-border);
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .admin-body .logout-btn {
@@ -573,7 +573,7 @@
 
 .admin-body .btn-secondary:hover {
   border-color: var(--accent);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .admin-body .delete-service,
@@ -614,7 +614,7 @@
   padding: 0.25rem 0.5rem;
   border: 1px solid var(--accent-border);
   border-radius: 999px;
-  color: var(--accent);
+  color: var(--accent-text);
   font-size: 0.65rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -623,7 +623,7 @@
 
 .list-item .muted,
 .list-plain li {
-  color: var(--text-muted);
+  color: var(--text-muted-alt);
   font-size: 0.86rem;
 }
 

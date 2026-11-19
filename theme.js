@@ -1,6 +1,8 @@
 (() => {
   const root = document.documentElement;
-  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  const mediaQuery = window.matchMedia
+    ? window.matchMedia('(prefers-color-scheme: dark)')
+    : null;
 
   function getSavedTheme() {
     try {
@@ -12,16 +14,19 @@
     }
   }
 
-  function applyTheme(theme, persist = false) {
-    root.dataset.theme = theme;
-    root.dataset.bsTheme = theme;
-
+  function updateToggleLabels(theme) {
     document.querySelectorAll('.theme-toggle').forEach((button) => {
       const nextTheme = theme === 'dark' ? 'light' : 'dark';
       button.setAttribute('aria-label', `Switch to ${nextTheme} mode`);
       button.setAttribute('title', `Switch to ${nextTheme} mode`);
       button.setAttribute('aria-pressed', String(theme === 'dark'));
     });
+  }
+
+  function applyTheme(theme, persist = false) {
+    root.dataset.theme = theme;
+    root.dataset.bsTheme = theme;
+    updateToggleLabels(theme);
 
     if (persist) {
       try {
@@ -32,16 +37,33 @@
     }
   }
 
-  applyTheme(getSavedTheme() || (mediaQuery.matches ? 'dark' : 'light'));
+  applyTheme(getSavedTheme() || (mediaQuery && mediaQuery.matches ? 'dark' : 'light'));
 
-  document.querySelectorAll('.theme-toggle').forEach((button) => {
-    button.addEventListener('click', () => {
-      const nextTheme = root.dataset.theme === 'dark' ? 'light' : 'dark';
-      applyTheme(nextTheme, true);
+  function initializeThemeToggles() {
+    document.querySelectorAll('.theme-toggle').forEach((button) => {
+      button.addEventListener('click', () => {
+        const nextTheme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+        applyTheme(nextTheme, true);
+      });
     });
-  });
+    updateToggleLabels(root.dataset.theme);
+  }
 
-  mediaQuery.addEventListener('change', (event) => {
-    if (!getSavedTheme()) applyTheme(event.matches ? 'dark' : 'light');
-  });
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeThemeToggles, { once: true });
+  } else {
+    initializeThemeToggles();
+  }
+
+  if (mediaQuery) {
+    const handleSystemThemeChange = (event) => {
+      if (!getSavedTheme()) applyTheme(event.matches ? 'dark' : 'light');
+    };
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handleSystemThemeChange);
+    } else if (mediaQuery.addListener) {
+      mediaQuery.addListener(handleSystemThemeChange);
+    }
+  }
 })();

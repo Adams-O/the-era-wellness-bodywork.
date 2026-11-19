@@ -3,21 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script>
-      (() => {
-        let savedTheme = null;
-        try {
-          savedTheme = localStorage.getItem('era-theme');
-        } catch (error) {
-          console.warn('Theme preference could not be read before rendering.', error);
-        }
-        const theme = savedTheme === 'light' || savedTheme === 'dark'
-          ? savedTheme
-          : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-        document.documentElement.dataset.theme = theme;
-        document.documentElement.dataset.bsTheme = theme;
-      })();
-    </script>
+    <script src="../theme.js"></script>
     <title>Admin | The Era Wellness & Bodywork</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -31,7 +17,6 @@
     />
     <link rel="stylesheet" href="../styles.css" />
     <link rel="stylesheet" href="admin.css" />
-    <script src="../theme.js" defer></script>
   </head>
   <body class="admin-body">
     <div class="admin-shell">

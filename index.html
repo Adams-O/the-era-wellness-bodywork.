@@ -3,21 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script>
-      (() => {
-        let savedTheme = null;
-        try {
-          savedTheme = localStorage.getItem('era-theme');
-        } catch (error) {
-          console.warn('Theme preference could not be read before rendering.', error);
-        }
-        const theme = savedTheme === 'light' || savedTheme === 'dark'
-          ? savedTheme
-          : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-        document.documentElement.dataset.theme = theme;
-        document.documentElement.dataset.bsTheme = theme;
-      })();
-    </script>
+    <script src="theme.js"></script>
     <meta
       name="description"
       content="The Era Wellness & Bodywork offers luxury massage, wellness and mobile bodywork services in Ghana and Nigeria."
@@ -34,7 +20,6 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
-    <script src="theme.js" defer></script>
   </head>
   <body>
     <header class="site-header" id="top">
