@@ -1,4 +1,4 @@
 window.ERA_SUPABASE_CONFIG = {
-  url: 'SUPABASE_URL',
-  publishableKey: 'SUPABASE_PUBLISHABLE_KEY'
+  url: 'https://kfqmbljtctvoeozjfkil.supabase.co',
+  publishableKey: 'sb_publishable_ZMJ3hAIVIFxR43NAH-bnag_MftFHsPg'
 };
