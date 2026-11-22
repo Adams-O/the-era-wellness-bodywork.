@@ -35,8 +35,6 @@
           <button
             class="navbar-toggler"
             type="button"
-            data-bs-toggle="collapse"
-            data-bs-target="#mainNav"
             aria-controls="mainNav"
             aria-expanded="false"
             aria-label="Toggle navigation"
@@ -45,7 +43,7 @@
             <span></span>
             <span></span>
           </button>
-          <div class="collapse navbar-collapse" id="mainNav">
+          <div class="collapse navbar-collapse" id="mainNav" aria-label="Main navigation">
             <ul class="navbar-nav ms-auto align-items-lg-center">
               <li class="nav-item"><a class="nav-link" href="#services">Services</a></li>
               <li class="nav-item"><a class="nav-link" href="#about">About</a></li>
@@ -198,7 +196,10 @@
           <div class="heading-row centered">
             <p class="eyebrow">Testimonials</p>
             <h2>Clients return for the ritual, the care and the results.</h2>
-            <a id="google-maps-review-link" class="btn btn-secondary hidden" href="#" target="_blank" rel="noopener noreferrer">Read or leave a Google review</a>
+            <div class="review-actions">
+              <a class="btn btn-primary" href="https://maps.app.goo.gl/VLtEwfNDoJrg8RL18?g_st=ic" target="_blank" rel="noopener noreferrer">READ OUR GOOGLE REVIEWS</a>
+              <a class="btn btn-secondary" href="https://maps.app.goo.gl/VLtEwfNDoJrg8RL18?g_st=ic" target="_blank" rel="noopener noreferrer">VIEW US ON GOOGLE MAPS</a>
+            </div>
           </div>
           <div id="testimonials-grid" class="testimonials-grid"></div>
         </div>
@@ -228,37 +229,27 @@
                 </p>
                 <div class="row g-3">
                   <div class="col-md-6">
-                    <div class="floating-field">
-                      <input id="booking-name" name="name" type="text" placeholder=" " required />
-                      <label for="booking-name">Full name</label>
-                    </div>
+                    <label for="booking-name">Full name</label>
+                    <input id="booking-name" name="name" type="text" autocomplete="name" required />
                   </div>
                   <div class="col-md-6">
-                    <div class="floating-field">
-                      <input id="booking-email" name="email" type="email" placeholder=" " required />
-                      <label for="booking-email">Email</label>
-                    </div>
+                    <label for="booking-phone">Phone number</label>
+                    <input id="booking-phone" name="phone" type="tel" autocomplete="tel" required />
                   </div>
-                  <fieldset class="booking-country-field col-md-6">
-                    <legend>Country</legend>
-                    <div class="country-segmented">
-                      <label class="country-option" for="booking-country">
-                        <input id="booking-country" name="country" type="radio" value="Ghana" required checked />
-                        <span>Ghana</span>
-                      </label>
-                      <label class="country-option" for="booking-country-nigeria">
-                        <input id="booking-country-nigeria" name="country" type="radio" value="Nigeria" />
-                        <span>Nigeria</span>
-                      </label>
-                    </div>
-                  </fieldset>
                   <div class="col-md-6">
-                    <label for="booking-service">Service</label>
+                    <label for="booking-email">Email address <span class="optional-label">(optional)</span></label>
+                    <input id="booking-email" name="email" type="email" autocomplete="email" />
+                  </div>
+                  <div class="col-md-6">
+                    <label for="booking-country">Country</label>
+                    <select id="booking-country" name="country" required>
+                      <option value="Ghana" selected>Ghana</option>
+                      <option value="Nigeria">Nigeria</option>
+                    </select>
+                  </div>
+                  <div class="col-md-6">
+                    <label for="booking-service">Service requested</label>
                     <select id="booking-service" name="service" required></select>
-                  </div>
-                  <div class="col-md-6 floating-field">
-                    <input id="booking-phone" name="phone" type="tel" placeholder=" " required />
-                    <label for="booking-phone">WhatsApp number</label>
                   </div>
                   <div class="col-md-6">
                     <label for="booking-date">Preferred date</label>
@@ -269,20 +260,18 @@
                     <input id="booking-time" name="preferred-time" type="time" required />
                   </div>
                   <div class="col-md-6">
-                    <label for="booking-session-type">Session location type</label>
+                    <label for="booking-session-type">Location type</label>
                     <select id="booking-session-type" name="session-type" required>
-                      <option value="Home">Home</option>
+                      <option value="Home" selected>Home</option>
                       <option value="Hotel">Hotel</option>
                     </select>
                   </div>
                   <div class="col-12">
-                    <div class="floating-field">
-                      <input id="booking-location" name="location" type="text" placeholder=" " required />
-                      <label for="booking-location">Home or hotel address / area</label>
-                    </div>
+                    <label for="booking-location">Address or area</label>
+                    <input id="booking-location" name="location" type="text" autocomplete="street-address" required />
                   </div>
                   <div class="col-12">
-                    <label for="booking-notes">Notes</label>
+                    <label for="booking-notes">Additional information <span class="optional-label">(optional)</span></label>
                     <textarea id="booking-notes" name="notes" rows="4" placeholder="Share any special requests."></textarea>
                   </div>
                   <div class="col-12 checkbox-row">
@@ -292,9 +281,11 @@
                     </label>
                   </div>
                   <div class="col-12">
-                    <button id="booking-submit" class="btn btn-primary w-100" type="submit">Send enquiry</button>
+                    <div class="booking-actions">
+                      <button id="booking-submit" class="btn btn-primary" type="submit">Send enquiry</button>
+                      <a id="booking-whatsapp" class="btn btn-secondary hidden" href="#" target="_blank" rel="noopener noreferrer">Continue on WhatsApp</a>
+                    </div>
                     <p id="booking-form-status" class="form-status" role="status" aria-live="polite"></p>
-                    <a id="booking-whatsapp" class="btn btn-secondary w-100 hidden" href="#" target="_blank" rel="noopener noreferrer">Continue on WhatsApp</a>
                   </div>
                 </div>
               </form>
