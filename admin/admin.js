@@ -46,6 +46,15 @@ let galleryPreviewUrl = '';
 let authStateRevision = 0;
 let pendingAccessRecheck = false;
 
+const requiredServices = [
+  { name: 'Nuru Massage', description: 'A fluid, full-body wellness experience designed for deep relaxation.', price_gh: 1500, display_order: 0 },
+  { name: 'Signature Swedish', description: 'A soothing signature ritual designed to relax and restore the nervous system.', price_gh: 700, display_order: 1 },
+  { name: 'Deep Tissue Recovery', description: 'A targeted therapy for muscle tension, stress and recovery.', price_gh: 700, display_order: 2 },
+  { name: 'Hot Stone Healing', description: 'Warm stones and mindful bodywork encourage deep release and calm.', price_gh: 800, display_order: 3 },
+  { name: 'Foot Massage', description: 'Focused foot and lower-leg care for tiredness and everyday tension.', price_gh: 300, display_order: 4 },
+  { name: 'Hand Massage', description: 'Gentle, restorative care for hands and forearms.', price_gh: 200, display_order: 5 }
+];
+
 function escapeHtml(value = '') {
   return String(value).replace(/[&<>"']/g, (character) => ({
     '&': '&amp;',
@@ -263,6 +272,42 @@ async function verifyAdminAccess(revision) {
   return true;
 }
 
+async function ensureRequiredServices() {
+  const normalize = (value) => String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  let changed = false;
+
+  for (const required of requiredServices) {
+    const existing = services.find((service) => normalize(service.name) === normalize(required.name));
+    if (existing) {
+      if (Number(existing.price_gh) !== required.price_gh) {
+        await updateRecord('services', existing.id, { price_gh: required.price_gh });
+        changed = true;
+      }
+    } else {
+      const duplicate = services.some((service) => normalize(service.name) === normalize(required.name));
+      if (!duplicate) {
+        const { error } = await supabaseClient.from('services').insert({
+          ...required,
+          price_ng: null,
+          image_url: '',
+          active: true
+        });
+        if (error) throw error;
+        changed = true;
+      }
+    }
+  }
+
+  if (changed) {
+    const { data, error } = await supabaseClient
+      .from('services')
+      .select('*')
+      .order('display_order');
+    if (error) throw error;
+    services = data || [];
+  }
+}
+
 async function loadAdminData() {
   const [servicesResult, galleryResult, testimonialsResult, settingsResult] = await Promise.all([
     supabaseClient.from('services').select('*').order('display_order'),
@@ -274,6 +319,7 @@ async function loadAdminData() {
     if (result.error) throw result.error;
   }
   services = servicesResult.data || [];
+  await ensureRequiredServices();
   gallery = galleryResult.data || [];
   testimonials = testimonialsResult.data || [];
   const loadedSettings = Object.fromEntries(
@@ -464,7 +510,8 @@ function bindListActions() {
       document.getElementById('service-name').value = service.name;
       document.getElementById('service-description').value = service.description;
       document.getElementById('service-price-gh').value = service.price_gh;
-      document.getElementById('service-price-ng').value = service.price_ng;
+      document.getElementById('service-price-ng').value = service.price_ng ?? '';
+      document.getElementById('service-display-order').value = service.display_order ?? '';
       document.getElementById('service-image').value = service.image_url || '';
       document.getElementById('service-active').checked = service.active;
       document.getElementById('cancel-service-edit').classList.remove('hidden');
@@ -589,17 +636,40 @@ function bindForms() {
           name: document.getElementById('service-name').value.trim(),
           description: document.getElementById('service-description').value.trim(),
           price_gh: document.getElementById('service-price-gh').valueAsNumber,
-          price_ng: document.getElementById('service-price-ng').valueAsNumber,
+          price_ng: document.getElementById('service-price-ng').value.trim()
+            ? document.getElementById('service-price-ng').valueAsNumber
+            : null,
           image_url: imageInput ? safeExternalUrl(imageInput) : '',
-          active: document.getElementById('service-active').checked
+          active: document.getElementById('service-active').checked,
+          display_order: document.getElementById('service-display-order').value.trim()
+            ? document.getElementById('service-display-order').valueAsNumber
+            : (id ? services.find((item) => item.id === id)?.display_order ?? 0 : nextDisplayOrder(services))
         };
-        if (!id) service.display_order = nextDisplayOrder(services);
         if (!service.name || !service.description) throw new Error('Enter a service name and description.');
-        if (!Number.isFinite(service.price_gh) || service.price_gh < 0 ||
-            !Number.isFinite(service.price_ng) || service.price_ng < 0) {
-          throw new Error('Enter a valid, non-negative price for each country.');
+        if (!Number.isFinite(service.price_gh) || service.price_gh < 0) {
+          throw new Error('Enter a valid, non-negative Ghana price.');
+        }
+        if (service.price_ng !== null && (!Number.isFinite(service.price_ng) || service.price_ng < 0)) {
+          throw new Error('Enter a valid, non-negative Nigeria price.');
+        }
+        if (!Number.isInteger(service.display_order) || service.display_order < 0) {
+          throw new Error('Display order must be a non-negative whole number.');
         }
         if (imageInput && !service.image_url) throw new Error('Service image URLs must use HTTPS.');
+        if (id) {
+          const normalizedName = service.name.toLowerCase().replace(/\s+/g, ' ').trim();
+          const duplicate = services.some((item) =>
+            item.id !== id &&
+            String(item.name || '').toLowerCase().replace(/\s+/g, ' ').trim() === normalizedName
+          );
+          if (duplicate) throw new Error(`A service named "${service.name}" already exists.`);
+        } else {
+          const normalizedName = service.name.toLowerCase().replace(/\s+/g, ' ').trim();
+          const duplicate = services.some((item) =>
+            String(item.name || '').toLowerCase().replace(/\s+/g, ' ').trim() === normalizedName
+          );
+          if (duplicate) throw new Error(`A service named "${service.name}" already exists.`);
+        }
 
         if (id) {
           await updateRecord('services', id, service);

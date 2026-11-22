@@ -40,30 +40,63 @@ const defaultContent = {
   services: [
     {
       id: 'service-1',
-      name: 'Deep Tissue Reset',
-      description: 'A targeted therapy for muscle tension, stress and recovery.',
+      name: 'Nuru Massage',
+      description: 'A fluid, full-body wellness experience designed for deep relaxation.',
       image: 'https://images.unsplash.com/photo-1515377905703-c4788e51af15?auto=format&fit=crop&w=900&q=80',
-      price_gh: 350,
-      price_ng: 45000,
-      active: true
+      price_gh: 1500,
+      price_ng: null,
+      active: true,
+      display_order: 0
     },
     {
       id: 'service-2',
-      name: 'Luxury Swedish Massage',
-      description: 'A soothing full-body ritual designed to relax and restore the nervous system.',
+      name: 'Signature Swedish',
+      description: 'A soothing signature ritual designed to relax and restore the nervous system.',
       image: 'https://images.unsplash.com/photo-1519823551278-64ac92734fb1?auto=format&fit=crop&w=900&q=80',
-      price_gh: 420,
-      price_ng: 56000,
-      active: true
+      price_gh: 700,
+      price_ng: null,
+      active: true,
+      display_order: 1
     },
     {
       id: 'service-3',
-      name: 'Couples Wellness Escape',
-      description: 'An indulgent shared experience for two, created for connection and calm.',
+      name: 'Deep Tissue Recovery',
+      description: 'A targeted therapy for muscle tension, stress and recovery.',
       image: 'https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=900&q=80',
-      price_gh: 650,
-      price_ng: 86000,
-      active: true
+      price_gh: 700,
+      price_ng: null,
+      active: true,
+      display_order: 2
+    },
+    {
+      id: 'service-4',
+      name: 'Hot Stone Healing',
+      description: 'Warm stones and mindful bodywork encourage deep release and calm.',
+      image: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=900&q=80',
+      price_gh: 800,
+      price_ng: null,
+      active: true,
+      display_order: 3
+    },
+    {
+      id: 'service-5',
+      name: 'Foot Massage',
+      description: 'Focused foot and lower-leg care for tiredness and everyday tension.',
+      image: 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?auto=format&fit=crop&w=900&q=80',
+      price_gh: 300,
+      price_ng: null,
+      active: true,
+      display_order: 4
+    },
+    {
+      id: 'service-6',
+      name: 'Hand Massage',
+      description: 'Gentle, restorative care for hands and forearms.',
+      image: 'https://images.unsplash.com/photo-1519415510236-718bdfcd89c8?auto=format&fit=crop&w=900&q=80',
+      price_gh: 200,
+      price_ng: null,
+      active: true,
+      display_order: 5
     }
   ],
   gallery: [
@@ -171,7 +204,9 @@ async function loadSiteContent() {
     },
     services: servicesResult.error
       ? defaultContent.services
-      : servicesResult.data.map((service) => ({ ...service, image: service.image_url })),
+      : (servicesResult.data.length
+        ? servicesResult.data.map((service) => ({ ...service, image: service.image_url }))
+        : defaultContent.services),
     gallery: galleryResult.error
       ? defaultContent.gallery
       : galleryResult.data.map((photo) => ({ ...photo, image: photo.image_url })),
@@ -186,14 +221,55 @@ function populateServiceOptions() {
   const selector = document.getElementById('booking-service');
   if (!selector) return;
   const content = getContent();
-  const activeServices = content.services
+  const activeServices = (content.services || [])
     .filter((service) => service.active)
-    .map((service) => `<option value="${escapeHtml(service.name)}">${escapeHtml(service.name)}</option>`);
-  if (activeServices.length === 0) {
-    activeServices.push('<option value="Help me choose a service">Help me choose a service</option>');
-  }
+    .sort((a, b) => (Number(a.display_order) || 0) - (Number(b.display_order) || 0))
+    .map((service) => {
+      const ghPrice = Number(service.price_gh);
+      const priceLabel = Number.isFinite(ghPrice)
+        ? `GH₵ ${ghPrice.toLocaleString('en-GH', { maximumFractionDigits: 2 })}`
+        : '';
+      return `<option value="${escapeHtml(service.name)}" data-gh-price="${escapeHtml(ghPrice)}" data-ng-price="${escapeHtml(service.price_ng ?? '')}">${escapeHtml(service.name)}${priceLabel ? ` — ${priceLabel}` : ''}</option>`;
+    });
+  activeServices.push('<option value="Help me choose a service">Help me choose a service</option>');
   selector.innerHTML = activeServices.join('');
   selector.insertAdjacentHTML('afterbegin', '<option value="" disabled selected>Select a service</option>');
+  updateSelectedServicePrice();
+}
+
+function updateSelectedServicePrice() {
+  const form = document.getElementById('booking-form');
+  const selector = document.getElementById('booking-service');
+  if (!form || !selector) return;
+  const country = form.elements.country?.value || 'Ghana';
+  Array.from(selector.options).forEach((option) => {
+    if (!option.value || option.value === 'Help me choose a service') return;
+    const ghPrice = option.dataset.ghPrice;
+    const ngPrice = option.dataset.ngPrice;
+    let priceLabel = '';
+    if (country === 'Nigeria' && ngPrice !== undefined && ngPrice !== '') {
+      priceLabel = `₦ ${Number(ngPrice).toLocaleString('en-NG', { maximumFractionDigits: 2 })}`;
+    } else if (ghPrice !== undefined && ghPrice !== '') {
+      priceLabel = `GH₵ ${Number(ghPrice).toLocaleString('en-GH', { maximumFractionDigits: 2 })}`;
+    }
+    const name = option.value;
+    option.textContent = priceLabel ? `${name} — ${priceLabel}` : name;
+  });
+  const selected = selector.options[selector.selectedIndex];
+  const name = selected?.value || '';
+  const ghPrice = selected?.dataset.ghPrice;
+  const ngPrice = selected?.dataset.ngPrice;
+  const priceField = form.elements['service-price'];
+  const nameField = form.elements['service-name'];
+  if (nameField) nameField.value = name;
+  if (!priceField) return;
+  if (country === 'Nigeria' && ngPrice !== undefined && ngPrice !== '') {
+    priceField.value = `₦ ${Number(ngPrice).toLocaleString('en-NG', { maximumFractionDigits: 2 })}`;
+  } else if (ghPrice !== undefined && ghPrice !== '') {
+    priceField.value = `GH₵ ${Number(ghPrice).toLocaleString('en-GH', { maximumFractionDigits: 2 })}`;
+  } else {
+    priceField.value = '';
+  }
 }
 
 function renderServices() {
@@ -477,9 +553,15 @@ function initializeBookingForm() {
   };
   form.addEventListener('input', refreshBookingActions);
   form.addEventListener('change', refreshBookingActions);
+  form.addEventListener('change', updateSelectedServicePrice);
   updateBookingWhatsApp();
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
+    updateSelectedServicePrice();
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
     submitting = true;
     if (submitButton) submitButton.disabled = true;
     if (status) {

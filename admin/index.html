@@ -159,8 +159,12 @@
                 </div>
                 <div class="col-md-6">
                   <label for="service-price-ng">Nigeria price (NGN)</label>
-                  <input id="service-price-ng" name="price_ng" type="number" min="0" step="0.01" required />
+                  <input id="service-price-ng" name="price_ng" type="number" min="0" step="0.01" placeholder="Optional; preserve any existing value" />
                 </div>
+              </div>
+              <div class="field-group">
+                <label for="service-display-order">Display order</label>
+                <input id="service-display-order" name="display_order" type="number" min="0" step="1" placeholder="Lower values appear first" />
               </div>
               <div class="field-group">
                 <label for="service-image">Image URL</label>
