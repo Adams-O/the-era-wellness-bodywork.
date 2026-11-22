@@ -267,6 +267,8 @@
                       <select id="booking-service" name="service" required></select>
                       <input type="hidden" name="service-name" value="" />
                       <input type="hidden" name="service-price" value="" />
+                      <input type="hidden" name="currency" value="GHS (GH₵)" />
+                      <input type="hidden" name="booking-price" value="" />
                     </div>
                     <div class="col-12 col-md-6">
                       <label for="booking-date">Preferred Date</label>
@@ -284,9 +286,10 @@
                     <div class="col-12 col-md-6">
                       <label for="booking-session-type">Location Type</label>
                       <select id="booking-session-type" name="session-type" required>
-                        <option value="Home" selected>Home</option>
-                        <option value="Hotel">Hotel</option>
+                        <option value="Home Service" selected>Home Service – therapist visits the customer's home</option>
+                        <option value="Hotel Service">Hotel Service – therapist visits the customer's hotel</option>
                       </select>
+                      <input type="hidden" name="location-type" value="Home Service" />
                     </div>
                     <div class="col-12 col-md-6">
                       <label for="booking-location">Address / Area</label>
@@ -344,9 +347,10 @@
               <a id="nigeria-email" href="#" target="_blank" rel="noreferrer">Email</a>
             </div>
             <div class="contact-card">
-              <h3>Instagram</h3>
+              <h3>Instagram &amp; TikTok</h3>
               <p>See our latest rituals, behind-the-scenes moments and wellness inspiration.</p>
               <a id="instagram-link" href="#" target="_blank" rel="noreferrer">Follow on Instagram</a>
+              <a id="tiktok-link" href="#" target="_blank" rel="noreferrer">Follow @theera3777 on TikTok</a>
             </div>
           </div>
         </div>
@@ -373,6 +377,7 @@
         <div class="footer-column">
           <p class="eyebrow">Follow</p>
           <a id="footer-instagram" href="#" target="_blank" rel="noreferrer">Instagram</a>
+          <a id="footer-tiktok" href="#" target="_blank" rel="noreferrer">TikTok</a>
         </div>
       </div>
     </footer>

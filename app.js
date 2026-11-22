@@ -17,6 +17,8 @@ const defaultContent = {
     bookingPolicy: 'A 50% deposit is required to secure a booking. A booking is only confirmed after the business confirms availability and receives the required deposit.',
     footerCopy: 'The Era Wellness & Bodywork offers luxury massage and wellness services across Ghana and Nigeria.',
     instagramUrl: 'https://www.instagram.com/theera377/',
+    tiktokUsername: '@theera3777',
+    tiktokUrl: 'https://www.tiktok.com/@theera3777',
     googleMapsReviewUrl: 'https://maps.app.goo.gl/VLtEwfNDoJrg8RL18?g_st=ic'
   },
   regions: {
@@ -44,7 +46,7 @@ const defaultContent = {
       description: 'A fluid, full-body wellness experience designed for deep relaxation.',
       image: 'https://images.unsplash.com/photo-1515377905703-c4788e51af15?auto=format&fit=crop&w=900&q=80',
       price_gh: 1500,
-      price_ng: null,
+      price_ng: 172000,
       active: true,
       display_order: 0
     },
@@ -54,7 +56,7 @@ const defaultContent = {
       description: 'A soothing signature ritual designed to relax and restore the nervous system.',
       image: 'https://images.unsplash.com/photo-1519823551278-64ac92734fb1?auto=format&fit=crop&w=900&q=80',
       price_gh: 700,
-      price_ng: null,
+      price_ng: 80000,
       active: true,
       display_order: 1
     },
@@ -64,7 +66,7 @@ const defaultContent = {
       description: 'A targeted therapy for muscle tension, stress and recovery.',
       image: 'https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=900&q=80',
       price_gh: 700,
-      price_ng: null,
+      price_ng: 80000,
       active: true,
       display_order: 2
     },
@@ -74,7 +76,7 @@ const defaultContent = {
       description: 'Warm stones and mindful bodywork encourage deep release and calm.',
       image: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=900&q=80',
       price_gh: 800,
-      price_ng: null,
+      price_ng: 92000,
       active: true,
       display_order: 3
     },
@@ -84,7 +86,7 @@ const defaultContent = {
       description: 'Focused foot and lower-leg care for tiredness and everyday tension.',
       image: 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?auto=format&fit=crop&w=900&q=80',
       price_gh: 300,
-      price_ng: null,
+      price_ng: 34000,
       active: true,
       display_order: 4
     },
@@ -94,7 +96,7 @@ const defaultContent = {
       description: 'Gentle, restorative care for hands and forearms.',
       image: 'https://images.unsplash.com/photo-1519415510236-718bdfcd89c8?auto=format&fit=crop&w=900&q=80',
       price_gh: 200,
-      price_ng: null,
+      price_ng: 23000,
       active: true,
       display_order: 5
     }
@@ -197,7 +199,16 @@ async function loadSiteContent() {
   });
   const suppliedReviewNames = new Set(suppliedReviews.map((review) => review.name.toLowerCase()));
   siteContent = {
-    site: { ...defaultContent.site, ...(settings.site || {}) },
+    site: {
+      ...defaultContent.site,
+      ...(settings.site || {}),
+      tiktokUsername: typeof settings.tiktok_username === 'string'
+        ? settings.tiktok_username
+        : defaultContent.site.tiktokUsername,
+      tiktokUrl: typeof settings.tiktok_url === 'string'
+        ? settings.tiktok_url
+        : defaultContent.site.tiktokUrl
+    },
     regions: {
       ghana: { ...defaultContent.regions.ghana, ...(settings.ghana || {}) },
       nigeria: { ...defaultContent.regions.nigeria, ...(settings.nigeria || {}) }
@@ -205,7 +216,18 @@ async function loadSiteContent() {
     services: servicesResult.error
       ? defaultContent.services
       : (servicesResult.data.length
-        ? servicesResult.data.map((service) => ({ ...service, image: service.image_url }))
+        ? servicesResult.data.map((service) => {
+          const fallback = defaultContent.services.find(
+            (candidate) => candidate.name.trim().toLowerCase() === String(service.name || '').trim().toLowerCase()
+          );
+          const ngPrice = Number(service.price_ng);
+          return {
+            ...service,
+            price_gh: Number(service.price_gh) > 0 ? service.price_gh : fallback?.price_gh,
+            price_ng: Number.isFinite(ngPrice) && ngPrice > 0 ? service.price_ng : fallback?.price_ng,
+            image: service.image_url
+          };
+        })
         : defaultContent.services),
     gallery: galleryResult.error
       ? defaultContent.gallery
@@ -226,8 +248,8 @@ function populateServiceOptions() {
     .sort((a, b) => (Number(a.display_order) || 0) - (Number(b.display_order) || 0))
     .map((service) => {
       const ghPrice = Number(service.price_gh);
-      const priceLabel = Number.isFinite(ghPrice)
-        ? `GH₵ ${ghPrice.toLocaleString('en-GH', { maximumFractionDigits: 2 })}`
+      const priceLabel = Number.isFinite(ghPrice) && ghPrice > 0
+        ? `GH₵${ghPrice.toLocaleString('en-GH', { maximumFractionDigits: 0 })}`
         : '';
       return `<option value="${escapeHtml(service.name)}" data-gh-price="${escapeHtml(ghPrice)}" data-ng-price="${escapeHtml(service.price_ng ?? '')}">${escapeHtml(service.name)}${priceLabel ? ` — ${priceLabel}` : ''}</option>`;
     });
@@ -242,15 +264,18 @@ function updateSelectedServicePrice() {
   const selector = document.getElementById('booking-service');
   if (!form || !selector) return;
   const country = form.elements.country?.value || 'Ghana';
+  const locationTypeField = form.elements['location-type'];
+  const locationType = form.elements['session-type']?.value || 'Home Service';
+  if (locationTypeField) locationTypeField.value = locationType;
   Array.from(selector.options).forEach((option) => {
     if (!option.value || option.value === 'Help me choose a service') return;
     const ghPrice = option.dataset.ghPrice;
     const ngPrice = option.dataset.ngPrice;
     let priceLabel = '';
     if (country === 'Nigeria' && ngPrice !== undefined && ngPrice !== '') {
-      priceLabel = `₦ ${Number(ngPrice).toLocaleString('en-NG', { maximumFractionDigits: 2 })}`;
+      priceLabel = `₦${Number(ngPrice).toLocaleString('en-NG', { maximumFractionDigits: 0 })}`;
     } else if (ghPrice !== undefined && ghPrice !== '') {
-      priceLabel = `GH₵ ${Number(ghPrice).toLocaleString('en-GH', { maximumFractionDigits: 2 })}`;
+      priceLabel = `GH₵${Number(ghPrice).toLocaleString('en-GH', { maximumFractionDigits: 0 })}`;
     }
     const name = option.value;
     option.textContent = priceLabel ? `${name} — ${priceLabel}` : name;
@@ -261,15 +286,19 @@ function updateSelectedServicePrice() {
   const ngPrice = selected?.dataset.ngPrice;
   const priceField = form.elements['service-price'];
   const nameField = form.elements['service-name'];
+  const currencyField = form.elements['currency'];
+  const bookingPriceField = form.elements['booking-price'];
+  let bookingPrice = '';
   if (nameField) nameField.value = name;
+  if (currencyField) currencyField.value = country === 'Nigeria' ? 'NGN (₦)' : 'GHS (GH₵)';
   if (!priceField) return;
   if (country === 'Nigeria' && ngPrice !== undefined && ngPrice !== '') {
-    priceField.value = `₦ ${Number(ngPrice).toLocaleString('en-NG', { maximumFractionDigits: 2 })}`;
+    bookingPrice = `₦${Number(ngPrice).toLocaleString('en-NG', { maximumFractionDigits: 0 })}`;
   } else if (ghPrice !== undefined && ghPrice !== '') {
-    priceField.value = `GH₵ ${Number(ghPrice).toLocaleString('en-GH', { maximumFractionDigits: 2 })}`;
-  } else {
-    priceField.value = '';
+    bookingPrice = `GH₵${Number(ghPrice).toLocaleString('en-GH', { maximumFractionDigits: 0 })}`;
   }
+  priceField.value = bookingPrice;
+  if (bookingPriceField) bookingPriceField.value = bookingPrice;
 }
 
 function renderServices() {
@@ -286,8 +315,8 @@ function renderServices() {
             <h3>${escapeHtml(service.name)}</h3>
             <p>${escapeHtml(service.description)}</p>
             <div class="service-meta">
-              <span><small>Ghana</small><strong>GH₵ ${Number(service.price_gh || 0).toFixed(2)}</strong></span>
-              <span><small>Nigeria</small><strong>₦ ${Number(service.price_ng || 0).toLocaleString()}</strong></span>
+              <span><small>Ghana</small><strong>GH₵${Number(service.price_gh || 0).toLocaleString('en-GH', { maximumFractionDigits: 0 })}</strong></span>
+              <span><small>Nigeria</small><strong>₦${Number(service.price_ng || 0).toLocaleString('en-NG', { maximumFractionDigits: 0 })}</strong></span>
             </div>
           </div>
         </article>
@@ -444,6 +473,13 @@ function renderSiteContent() {
   const instagramUrl = safeExternalUrl(site.instagramUrl || defaultContent.site.instagramUrl);
   if (instagramLink) instagramLink.href = instagramUrl || '#';
   if (footerInstagram) footerInstagram.href = instagramUrl || '#';
+  const tiktokUrl = safeExternalUrl(site.tiktokUrl || defaultContent.site.tiktokUrl);
+  const tiktokUsername = String(site.tiktokUsername || defaultContent.site.tiktokUsername || '').trim();
+  document.querySelectorAll('#tiktok-link, #footer-tiktok').forEach((link) => {
+    link.href = tiktokUrl || '#';
+  });
+  const tiktokLink = document.getElementById('tiktok-link');
+  if (tiktokLink) tiktokLink.textContent = tiktokUsername ? `Follow ${tiktokUsername} on TikTok` : 'Follow on TikTok';
   const mapsUrl = safeExternalUrl(site.googleMapsReviewUrl) || defaultContent.site.googleMapsReviewUrl;
   document.querySelectorAll('.review-actions a').forEach((link) => {
     link.href = mapsUrl;

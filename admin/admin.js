@@ -25,6 +25,8 @@ const defaultSite = {
   bookingPolicy: '',
   footerCopy: '',
   instagramUrl: '',
+  tiktokUsername: '@theera3777',
+  tiktokUrl: 'https://www.tiktok.com/@theera3777',
   googleMapsReviewUrl: ''
 };
 
@@ -47,12 +49,12 @@ let authStateRevision = 0;
 let pendingAccessRecheck = false;
 
 const requiredServices = [
-  { name: 'Nuru Massage', description: 'A fluid, full-body wellness experience designed for deep relaxation.', price_gh: 1500, display_order: 0 },
-  { name: 'Signature Swedish', description: 'A soothing signature ritual designed to relax and restore the nervous system.', price_gh: 700, display_order: 1 },
-  { name: 'Deep Tissue Recovery', description: 'A targeted therapy for muscle tension, stress and recovery.', price_gh: 700, display_order: 2 },
-  { name: 'Hot Stone Healing', description: 'Warm stones and mindful bodywork encourage deep release and calm.', price_gh: 800, display_order: 3 },
-  { name: 'Foot Massage', description: 'Focused foot and lower-leg care for tiredness and everyday tension.', price_gh: 300, display_order: 4 },
-  { name: 'Hand Massage', description: 'Gentle, restorative care for hands and forearms.', price_gh: 200, display_order: 5 }
+  { name: 'Nuru Massage', description: 'A fluid, full-body wellness experience designed for deep relaxation.', price_gh: 1500, price_ng: 172000, display_order: 0 },
+  { name: 'Signature Swedish', description: 'A soothing signature ritual designed to relax and restore the nervous system.', price_gh: 700, price_ng: 80000, display_order: 1 },
+  { name: 'Deep Tissue Recovery', description: 'A targeted therapy for muscle tension, stress and recovery.', price_gh: 700, price_ng: 80000, display_order: 2 },
+  { name: 'Hot Stone Healing', description: 'Warm stones and mindful bodywork encourage deep release and calm.', price_gh: 800, price_ng: 92000, display_order: 3 },
+  { name: 'Foot Massage', description: 'Focused foot and lower-leg care for tiredness and everyday tension.', price_gh: 300, price_ng: 34000, display_order: 4 },
+  { name: 'Hand Massage', description: 'Gentle, restorative care for hands and forearms.', price_gh: 200, price_ng: 23000, display_order: 5 }
 ];
 
 function escapeHtml(value = '') {
@@ -179,7 +181,7 @@ function clearAdminData() {
   for (const id of ['metric-services', 'metric-gallery', 'metric-testimonials', 'metric-approved-testimonials']) {
     document.getElementById(id).textContent = '0';
   }
-  for (const id of ['service-form', 'gallery-form', 'content-form', 'region-form']) {
+  for (const id of ['service-form', 'gallery-form', 'content-form', 'social-form', 'region-form']) {
     document.getElementById(id).reset();
   }
   for (const id of ['cancel-service-edit', 'cancel-gallery-edit']) {
@@ -279,8 +281,19 @@ async function ensureRequiredServices() {
   for (const required of requiredServices) {
     const existing = services.find((service) => normalize(service.name) === normalize(required.name));
     if (existing) {
-      if (Number(existing.price_gh) !== required.price_gh) {
-        await updateRecord('services', existing.id, { price_gh: required.price_gh });
+      const updates = {};
+      if (!Number.isFinite(Number(existing.price_gh)) || Number(existing.price_gh) <= 0) {
+        updates.price_gh = required.price_gh;
+      }
+      if (!Number.isFinite(Number(existing.price_ng)) || Number(existing.price_ng) <= 0) {
+        updates.price_ng = required.price_ng;
+      }
+      if (!existing.active) updates.active = true;
+      if (existing.display_order === null || existing.display_order === undefined) {
+        updates.display_order = required.display_order;
+      }
+      if (Object.keys(updates).length) {
+        await updateRecord('services', existing.id, updates);
         changed = true;
       }
     } else {
@@ -288,7 +301,6 @@ async function ensureRequiredServices() {
       if (!duplicate) {
         const { error } = await supabaseClient.from('services').insert({
           ...required,
-          price_ng: null,
           image_url: '',
           active: true
         });
@@ -329,7 +341,16 @@ async function loadAdminData() {
     value && typeof value === 'object' && !Array.isArray(value) ? value : {}
   );
   settings = {
-    site: { ...defaultSite, ...asSettingsObject(loadedSettings.site) },
+    site: {
+      ...defaultSite,
+      ...asSettingsObject(loadedSettings.site),
+      tiktokUsername: typeof loadedSettings.tiktok_username === 'string'
+        ? loadedSettings.tiktok_username
+        : defaultSite.tiktokUsername,
+      tiktokUrl: typeof loadedSettings.tiktok_url === 'string'
+        ? loadedSettings.tiktok_url
+        : defaultSite.tiktokUrl
+    },
     ghana: { ...defaultRegion, ...asSettingsObject(loadedSettings.ghana) },
     nigeria: { ...defaultRegion, ...asSettingsObject(loadedSettings.nigeria) }
   };
@@ -426,6 +447,8 @@ function fillContentForm() {
   document.getElementById('booking-policy-text').value = site.bookingPolicy || '';
   document.getElementById('footer-copy-text').value = site.footerCopy || '';
   document.getElementById('content-instagram').value = site.instagramUrl || '';
+  document.getElementById('tiktok-username').value = site.tiktokUsername || '@theera3777';
+  document.getElementById('tiktok-url').value = site.tiktokUrl || 'https://www.tiktok.com/@theera3777';
   document.getElementById('content-google-maps').value = site.googleMapsReviewUrl || '';
 
   document.getElementById('ghana-location').value = settings.ghana.location || '';
@@ -625,6 +648,27 @@ async function validateGalleryFile(file) {
 }
 
 function bindForms() {
+  document.getElementById('social-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    try {
+      await withBusyButton(event.submitter, 'Saving…', async () => {
+        const usernameInput = document.getElementById('tiktok-username').value.trim();
+        const urlInput = document.getElementById('tiktok-url').value.trim();
+        const tiktokUrl = safeExternalUrl(urlInput);
+        if (!usernameInput) throw new Error('Enter the TikTok username.');
+        if (!tiktokUrl) throw new Error('Enter a valid HTTPS TikTok profile URL.');
+        await saveSettings([
+          { key: 'tiktok_username', value: usernameInput },
+          { key: 'tiktok_url', value: tiktokUrl }
+        ]);
+        await loadAdminData();
+        showAdminToast('TikTok settings saved successfully.');
+      });
+    } catch (error) {
+      reportError(error, 'Saving TikTok settings');
+    }
+  });
+
   const serviceForm = document.getElementById('service-form');
   serviceForm.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -632,14 +676,28 @@ function bindForms() {
       await withBusyButton(event.submitter, 'Saving…', async () => {
         const id = document.getElementById('service-id').value;
         const imageInput = document.getElementById('service-image').value.trim();
+        const imageFile = document.getElementById('service-image-file').files[0];
+        let imageUrl = imageInput ? safeExternalUrl(imageInput) : '';
+        let storagePath = null;
+        if (imageFile) {
+          const format = await validateGalleryFile(imageFile);
+          const { data: userData, error: userError } = await supabaseClient.auth.getUser();
+          if (userError) throw userError;
+          if (!userData.user) throw new Error('Your administrator session has expired. Sign in again.');
+          if (!window.crypto?.randomUUID) throw new Error('Secure image uploads are not supported in this browser.');
+          storagePath = `${userData.user.id}/${window.crypto.randomUUID()}.${format.extension}`;
+          const { error: uploadError } = await supabaseClient.storage
+            .from(galleryBucket)
+            .upload(storagePath, imageFile, { contentType: imageFile.type, cacheControl: '3600', upsert: false });
+          if (uploadError) throw uploadError;
+          imageUrl = supabaseClient.storage.from(galleryBucket).getPublicUrl(storagePath).data.publicUrl;
+        }
         const service = {
           name: document.getElementById('service-name').value.trim(),
           description: document.getElementById('service-description').value.trim(),
           price_gh: document.getElementById('service-price-gh').valueAsNumber,
-          price_ng: document.getElementById('service-price-ng').value.trim()
-            ? document.getElementById('service-price-ng').valueAsNumber
-            : null,
-          image_url: imageInput ? safeExternalUrl(imageInput) : '',
+          price_ng: document.getElementById('service-price-ng').valueAsNumber,
+          image_url: imageUrl,
           active: document.getElementById('service-active').checked,
           display_order: document.getElementById('service-display-order').value.trim()
             ? document.getElementById('service-display-order').valueAsNumber
@@ -649,8 +707,8 @@ function bindForms() {
         if (!Number.isFinite(service.price_gh) || service.price_gh < 0) {
           throw new Error('Enter a valid, non-negative Ghana price.');
         }
-        if (service.price_ng !== null && (!Number.isFinite(service.price_ng) || service.price_ng < 0)) {
-          throw new Error('Enter a valid, non-negative Nigeria price.');
+        if (!Number.isFinite(service.price_ng) || service.price_ng <= 0) {
+          throw new Error('Enter a valid Nigeria price greater than zero.');
         }
         if (!Number.isInteger(service.display_order) || service.display_order < 0) {
           throw new Error('Display order must be a non-negative whole number.');
