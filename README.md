@@ -25,7 +25,7 @@ Database objects and policies are managed in the Supabase Dashboard. This reposi
 - `public.site_settings`: `id` (UUID), unique `key` (text), `value` (JSONB), and `updated_at` timestamp. The site reads the `site`, `ghana`, and `nigeria` settings.
 - `public.admin_users`: `user_id` (UUID referencing `auth.users.id`) and `created_at` timestamp. A row identifies an account allowed to administer the CMS.
 
-The admin app also expects an authenticated-only `public.is_admin()` database function that returns whether the current authenticated user is listed in `public.admin_users`. The browser calls this function to authorize the dashboard; signing in alone must not grant CMS access.
+The admin app checks the signed-in user against their own row in `public.admin_users` and calls the authenticated-only `public.is_admin()` function both when restoring a session and when the auth session changes. Both checks must pass before any dashboard content is shown; signing in alone must not grant CMS access. The function must check `auth.uid()` against `public.admin_users.user_id`.
 
 ### Expected access policies
 
@@ -36,23 +36,24 @@ Enable Row Level Security on the application tables and configure policies in th
 - An authenticated user can read only their own `admin_users` row. Administrator membership must be managed with privileged Dashboard access, not a public frontend write policy.
 - The `is_admin()` function can be called by authenticated users and must check the current user's membership.
 
-Do not grant public writes to CMS tables or expose a service-role credential in this website.
+The dashboard's UI checks are not a replacement for database security. RLS must enforce every read and write as well: public users may read only active services, published gallery images, approved testimonials, and public settings; only administrators may access unpublished/private content or write to CMS tables. Do not grant public writes to CMS tables or expose a service-role credential in this website.
 
 ## Administrator account and security
 
 1. In Supabase **Authentication → Users**, create the owner's account. Disable public sign-up if it is enabled; the owner account should be provisioned from the dashboard.
 2. Use privileged Supabase Dashboard access to add the account's UUID to `public.admin_users` and confirm the `is_admin()` function and RLS policies match the expectations above.
-3. Visit `/admin/` on the deployed site and sign in with that Supabase account.
+3. Visit `/admin/` on the deployed site and sign in with that Supabase account. An account without an `admin_users` row is signed out and denied access.
 
 The repository does not confirm that these objects or policies exist in the live project. If they are missing or differ, public data reads, CMS writes, or administrator access may fail.
+Use Supabase's available MFA controls for administrator accounts.
 
 ## Storage and CMS
 
 Create or verify the `era-gallery` bucket in the Supabase Dashboard. The application expects public image reads, image uploads limited to JPG, PNG, WebP, or GIF files up to 10 MB, and upload/update/delete permissions restricted to authenticated administrators. Use the CMS at `/admin/` to:
 
-- Create, edit, hide, and delete services, including separate Ghana and Nigeria prices.
-- Upload gallery images to Supabase Storage or supply an existing HTTPS image URL.
-- Add, edit, approve, and remove testimonials.
+- Create, edit, activate/deactivate, and delete services, including separate Ghana and Nigeria prices.
+- Upload and preview JPG, PNG, WebP, or GIF gallery images up to 10 MB in `era-gallery`, or supply an existing HTTPS image URL; publish, unpublish, and delete gallery items.
+- View testimonials and approve, reject, or delete them. The dashboard does not invent or edit review text.
 - Update homepage text, Instagram and Google Maps review links, and the 50% deposit policy.
 - Update country-specific locations, contact descriptions, email addresses, currencies, and WhatsApp numbers.
 
@@ -64,6 +65,8 @@ The Google Maps review links use the business profile URL supplied for this site
 2. Before deploying, confirm `supabase-config.js` still points to the intended Supabase project and uses its publishable key.
 3. In the Netlify site dashboard, confirm that form detection is enabled and that `booking-enquiry` appears under **Forms**. If it is not detected, enable form detection and trigger a new deploy.
 4. Review customer submissions in **Netlify → Forms → booking-enquiry**.
+
+`netlify.toml` applies a Content Security Policy and standard browser security headers, disables caching for `/admin/`, and marks the admin route as non-indexable. If the Supabase project URL or a CDN changes, update the matching CSP source in `netlify.toml` and redeploy.
 
 The form captures name, phone/WhatsApp number, optional email, country, service, preferred date and time, home/hotel session type, location, notes, and acknowledgement of the 50% deposit policy. Its WhatsApp link uses the number configured for the selected country. The admin dashboard links to Netlify for booking submissions; it does not attempt to access private Netlify data from the browser.
 

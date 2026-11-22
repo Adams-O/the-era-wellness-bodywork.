@@ -1,4 +1,12 @@
 const config = window.ERA_SUPABASE_CONFIG || {};
+const galleryBucket = 'era-gallery';
+const maxGalleryFileSize = 10 * 1024 * 1024;
+const allowedGalleryTypes = new Map([
+  ['image/jpeg', { extension: 'jpg', signature: (bytes) => bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff }],
+  ['image/png', { extension: 'png', signature: (bytes) => bytes.slice(0, 8).join(',') === '137,80,78,71,13,10,26,10' }],
+  ['image/webp', { extension: 'webp', signature: (bytes) => bytes.slice(0, 4).join(',') === '82,73,70,70' && bytes.slice(8, 12).join(',') === '87,69,66,80' }],
+  ['image/gif', { extension: 'gif', signature: (bytes) => ['GIF87a', 'GIF89a'].includes(String.fromCharCode(...bytes.slice(0, 6))) }]
+]);
 const supabaseClient =
   window.supabase?.createClient &&
   config.url &&
@@ -33,6 +41,10 @@ let services = [];
 let gallery = [];
 let testimonials = [];
 let settings = { site: { ...defaultSite }, ghana: { ...defaultRegion }, nigeria: { ...defaultRegion } };
+let authCheckTimer;
+let galleryPreviewUrl = '';
+let authStateRevision = 0;
+let pendingAccessRecheck = false;
 
 function escapeHtml(value = '') {
   return String(value).replace(/[&<>"']/g, (character) => ({
@@ -42,6 +54,66 @@ function escapeHtml(value = '') {
     '"': '&quot;',
     "'": '&#39;'
   })[character]);
+}
+
+function safeExternalUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' ? url.href : '';
+  } catch {
+    return '';
+  }
+}
+
+async function withBusyButton(button, busyLabel, action) {
+  if (!button) return action();
+  const originalLabel = button.textContent;
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  button.textContent = busyLabel;
+  try {
+    return await action();
+  } finally {
+    button.disabled = false;
+    button.removeAttribute('aria-busy');
+    button.textContent = originalLabel;
+  }
+}
+
+async function updateRecord(table, id, updates) {
+  const { data, error } = await supabaseClient
+    .from(table)
+    .update(updates)
+    .eq('id', id)
+    .select('id')
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error('The record was not found or your permissions have changed. Refresh and try again.');
+}
+
+async function removeRecord(table, id) {
+  const { data, error } = await supabaseClient
+    .from(table)
+    .delete()
+    .eq('id', id)
+    .select('id')
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error('The record was not found or your permissions have changed. Refresh and try again.');
+}
+
+function formatPrice(value, locale) {
+  if (value === null || value === undefined || value === '') return 'Not set';
+  const amount = Number(value);
+  return Number.isFinite(amount) ? amount.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'Unavailable';
+}
+
+function nextDisplayOrder(items) {
+  const lastOrder = items.reduce((highest, item) => {
+    const order = Number(item.display_order);
+    return Number.isFinite(order) ? Math.max(highest, order) : highest;
+  }, -1);
+  return lastOrder + 1;
 }
 
 function setAuthMessage(message, success = false) {
@@ -82,11 +154,37 @@ function setCurrentTab(tabName) {
   });
   document.querySelectorAll('.nav-tab').forEach((tab) => {
     tab.classList.toggle('is-active', tab.dataset.tab === tabName);
+    if (tab.dataset.tab === tabName) tab.setAttribute('aria-current', 'page');
+    else tab.removeAttribute('aria-current');
   });
 }
 
-function setAdminSessionState(isLoggedIn) {
-  document.getElementById('login-screen').classList.toggle('active-panel', !isLoggedIn);
+function clearAdminData() {
+  services = [];
+  gallery = [];
+  testimonials = [];
+  settings = { site: { ...defaultSite }, ghana: { ...defaultRegion }, nigeria: { ...defaultRegion } };
+  for (const id of ['service-list', 'gallery-list', 'testimonial-list', 'recent-bookings', 'region-preview', 'admin-bookings-list']) {
+    document.getElementById(id).innerHTML = '';
+  }
+  for (const id of ['metric-services', 'metric-gallery', 'metric-testimonials', 'metric-approved-testimonials']) {
+    document.getElementById(id).textContent = '0';
+  }
+  for (const id of ['service-form', 'gallery-form', 'content-form', 'region-form']) {
+    document.getElementById(id).reset();
+  }
+  for (const id of ['cancel-service-edit', 'cancel-gallery-edit']) {
+    document.getElementById(id).classList.add('hidden');
+  }
+  document.getElementById('admin-password').value = '';
+  updateGalleryPreview('');
+}
+
+function setAdminSessionState(state) {
+  const isLoggedIn = state === 'authorized';
+  if (!isLoggedIn) clearAdminData();
+  document.getElementById('login-screen').classList.toggle('active-panel', state === 'signed-out');
+  document.getElementById('loading-screen').classList.toggle('active-panel', state === 'checking');
   document.querySelectorAll('.admin-panel:not(#login-screen)').forEach((panel) => {
     panel.classList.toggle('active-panel', isLoggedIn && panel.id === 'overview-screen');
   });
@@ -94,17 +192,74 @@ function setAdminSessionState(isLoggedIn) {
   if (isLoggedIn) setCurrentTab('overview');
 }
 
-async function checkAdminAccess() {
-  const { data, error } = await supabaseClient.rpc('is_admin');
-  if (error) throw error;
-  if (data !== true) {
-    await supabaseClient.auth.signOut();
-    setAdminSessionState(false);
+let adminAccessCheck;
+
+function checkAdminAccess() {
+  if (adminAccessCheck) {
+    pendingAccessRecheck = true;
+    return adminAccessCheck;
+  }
+  const revision = authStateRevision;
+  adminAccessCheck = verifyAdminAccess(revision)
+    .catch((error) => {
+      if (revision !== authStateRevision) {
+        clearAdminData();
+        return false;
+      }
+      throw error;
+    })
+    .finally(() => {
+      adminAccessCheck = null;
+      if (pendingAccessRecheck) {
+        pendingAccessRecheck = false;
+        window.setTimeout(() => {
+          checkAdminAccess().catch((error) => {
+            setAdminSessionState('signed-out');
+            setAuthMessage('Unable to verify administrator access. Check your connection and try again.');
+            reportError(error, 'Verifying administrator access');
+          });
+        }, 0);
+      }
+    });
+  return adminAccessCheck;
+}
+
+async function verifyAdminAccess(revision) {
+  setAdminSessionState('checking');
+  const { data: userData, error: userError } = await supabaseClient.auth.getUser();
+  if (revision !== authStateRevision) return false;
+  if (userError) throw userError;
+  if (!userData.user) {
+    setAdminSessionState('signed-out');
+    return false;
+  }
+
+  const [membershipResult, adminResult] = await Promise.all([
+    supabaseClient
+      .from('admin_users')
+      .select('user_id')
+      .eq('user_id', userData.user.id)
+      .maybeSingle(),
+    supabaseClient.rpc('is_admin')
+  ]);
+  if (revision !== authStateRevision) return false;
+  if (membershipResult.error) throw membershipResult.error;
+  if (adminResult.error) throw adminResult.error;
+  if (!membershipResult.data || adminResult.data !== true) {
+    const { error: signOutError } = await supabaseClient.auth.signOut();
+    if (signOutError) throw signOutError;
+    setAdminSessionState('signed-out');
     setAuthMessage('This account is not authorized for the administrator portal.');
     return false;
   }
-  setAdminSessionState(true);
+
   await loadAdminData();
+  if (revision !== authStateRevision) {
+    clearAdminData();
+    return false;
+  }
+  setAdminSessionState('authorized');
+  setAuthMessage('');
   return true;
 }
 
@@ -124,23 +279,26 @@ async function loadAdminData() {
   const loadedSettings = Object.fromEntries(
     (settingsResult.data || []).map(({ key, value }) => [key, value])
   );
+  const asSettingsObject = (value) => (
+    value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+  );
   settings = {
-    site: { ...defaultSite, ...(loadedSettings.site || {}) },
-    ghana: { ...defaultRegion, ...(loadedSettings.ghana || {}) },
-    nigeria: { ...defaultRegion, ...(loadedSettings.nigeria || {}) }
+    site: { ...defaultSite, ...asSettingsObject(loadedSettings.site) },
+    ghana: { ...defaultRegion, ...asSettingsObject(loadedSettings.ghana) },
+    nigeria: { ...defaultRegion, ...asSettingsObject(loadedSettings.nigeria) }
   };
   renderAll();
 }
 
 function renderOverview() {
   document.getElementById('metric-services').textContent = services.length;
-  document.getElementById('metric-gallery').textContent = gallery.length;
-  document.getElementById('metric-testimonials').textContent = testimonials.length;
-  document.getElementById('metric-bookings').textContent = 'Netlify';
+  document.getElementById('metric-gallery').textContent = gallery.filter((photo) => photo.published).length;
+  document.getElementById('metric-testimonials').textContent = testimonials.filter((review) => !review.approved).length;
+  document.getElementById('metric-approved-testimonials').textContent = testimonials.filter((review) => review.approved).length;
 
   const recentBookings = document.getElementById('recent-bookings');
   recentBookings.innerHTML = `
-    <li>Booking enquiries are collected securely by Netlify Forms.</li>
+    <li>Booking enquiries are collected securely by Netlify Forms. No booking data is stored in this dashboard.</li>
     <li><a href="https://app.netlify.com/" target="_blank" rel="noopener noreferrer">Open Netlify Forms submissions</a></li>
   `;
 }
@@ -150,15 +308,18 @@ function renderServicesList() {
     <div class="list-item">
       <div class="list-item-head">
         <strong>${escapeHtml(service.name)}</strong>
-        <small>${service.active ? 'Active' : 'Hidden'}</small>
+        <small>${service.active ? 'Active' : 'Inactive'}</small>
       </div>
-      <div class="muted">GHS ${Number(service.price_gh || 0).toFixed(2)} • NGN ${Number(service.price_ng || 0).toLocaleString()}</div>
+      <p class="muted">${escapeHtml(service.description)}</p>
+      ${safeExternalUrl(service.image_url) ? `<img class="admin-list-image" src="${escapeHtml(safeExternalUrl(service.image_url))}" alt="${escapeHtml(service.name)}" loading="lazy" decoding="async">` : ''}
+      <div class="muted">GHS ${escapeHtml(formatPrice(service.price_gh, 'en-GH'))} • NGN ${escapeHtml(formatPrice(service.price_ng, 'en-NG'))}</div>
       <div class="list-item-actions">
         <button type="button" class="btn btn-secondary edit-service" data-id="${escapeHtml(service.id)}">Edit</button>
+        <button type="button" class="btn btn-secondary toggle-service" data-id="${escapeHtml(service.id)}" aria-label="${service.active ? 'Deactivate' : 'Activate'} ${escapeHtml(service.name)}">${service.active ? 'Deactivate' : 'Activate'}</button>
         <button type="button" class="btn btn-secondary delete-service" data-id="${escapeHtml(service.id)}">Delete</button>
       </div>
     </div>
-  `).join('');
+  `).join('') || '<p class="muted">No services have been added yet.</p>';
 }
 
 function renderGalleryList() {
@@ -166,15 +327,16 @@ function renderGalleryList() {
     <div class="list-item">
       <div class="list-item-head">
         <strong>${escapeHtml(photo.caption || 'Untitled photo')}</strong>
-        <small>${photo.published ? 'Published' : 'Hidden'}</small>
+        <small>${photo.published ? 'Published' : 'Unpublished'}</small>
       </div>
-      <div class="muted">${escapeHtml(photo.image_url)}</div>
+      ${safeExternalUrl(photo.image_url) ? `<img class="admin-list-image" src="${escapeHtml(safeExternalUrl(photo.image_url))}" alt="${escapeHtml(photo.caption || 'Gallery image')}" loading="lazy" decoding="async">` : '<p class="muted">Image URL is unavailable.</p>'}
       <div class="list-item-actions">
         <button type="button" class="btn btn-secondary edit-gallery" data-id="${escapeHtml(photo.id)}">Edit</button>
+        <button type="button" class="btn btn-secondary toggle-gallery" data-id="${escapeHtml(photo.id)}" aria-label="${photo.published ? 'Unpublish' : 'Publish'} ${escapeHtml(photo.caption || 'image')}">${photo.published ? 'Unpublish' : 'Publish'}</button>
         <button type="button" class="btn btn-secondary delete-gallery" data-id="${escapeHtml(photo.id)}">Delete</button>
       </div>
     </div>
-  `).join('');
+  `).join('') || '<p class="muted">No gallery images have been added yet.</p>';
 }
 
 function renderTestimonialsList() {
@@ -182,16 +344,16 @@ function renderTestimonialsList() {
     <div class="list-item">
       <div class="list-item-head">
         <strong>${escapeHtml(review.name)}</strong>
-        <small>${review.approved ? 'Approved' : 'Hidden'}</small>
+        <small>${review.approved ? 'Approved' : 'Pending approval'}</small>
       </div>
-      <div class="muted">${escapeHtml(review.source)} • Rating: ${review.rating || 5}/5</div>
-      <div class="muted">${escapeHtml(review.text)}</div>
+      <div class="muted">${escapeHtml(review.source || 'Review')} • ${review.rating ? `${escapeHtml(review.rating)}/5` : 'No rating provided'}${review.review_date ? ` • ${escapeHtml(review.review_date)}` : ''}</div>
+      <p class="review-copy">${escapeHtml(review.text || 'No review text provided.')}</p>
       <div class="list-item-actions">
-        <button type="button" class="btn btn-secondary edit-review" data-id="${escapeHtml(review.id)}">Edit</button>
+        <button type="button" class="btn btn-secondary review-approval" data-id="${escapeHtml(review.id)}" data-approved="${!review.approved}" aria-label="${review.approved ? 'Reject' : 'Approve'} review by ${escapeHtml(review.name)}">${review.approved ? 'Reject' : 'Approve'}</button>
         <button type="button" class="btn btn-secondary delete-review" data-id="${escapeHtml(review.id)}">Delete</button>
       </div>
     </div>
-  `).join('');
+  `).join('') || '<p class="muted">No testimonials have been submitted.</p>';
 }
 
 function renderRegionPreview() {
@@ -253,11 +415,19 @@ function renderAll() {
   fillContentForm();
 }
 
-async function saveSetting(key, value) {
-  const { error } = await supabaseClient
+async function saveSettings(entries) {
+  const { data, error } = await supabaseClient
     .from('site_settings')
-    .upsert({ key, value }, { onConflict: 'key' });
+    .upsert(entries, { onConflict: 'key' })
+    .select('key');
   if (error) throw error;
+  if (!data || data.length !== entries.length) {
+    throw new Error('Not all website settings were saved. Check administrator permissions and try again.');
+  }
+}
+
+function saveSetting(key, value) {
+  return saveSettings([{ key, value }]);
 }
 
 function resetForm(form, cancelButton) {
@@ -272,13 +442,20 @@ function bindNavigation() {
     button.addEventListener('click', () => setCurrentTab(button.dataset.tab));
   });
 
-  document.getElementById('refresh-metrics').addEventListener('click', () => {
-    loadAdminData().catch((error) => reportError(error, 'Refreshing dashboard data'));
+  document.getElementById('refresh-metrics').addEventListener('click', (event) => {
+    withBusyButton(event.currentTarget, 'Refreshing…', async () => {
+      await checkAdminAccess();
+    }).catch((error) => {
+      setAdminSessionState('signed-out');
+      setAuthMessage('Unable to verify administrator access. Check your connection and sign in again.');
+      reportError(error, 'Refreshing dashboard data');
+    });
   });
 }
 
 function bindListActions() {
   document.getElementById('service-list').addEventListener('click', (event) => {
+    if (!(event.target instanceof Element)) return;
     const button = event.target.closest('button[data-id]');
     if (!button) return;
     const service = services.find((item) => item.id === button.dataset.id);
@@ -291,18 +468,23 @@ function bindListActions() {
       document.getElementById('service-image').value = service.image_url || '';
       document.getElementById('service-active').checked = service.active;
       document.getElementById('cancel-service-edit').classList.remove('hidden');
-    } else if (button.classList.contains('delete-service') && service && window.confirm(`Delete "${service.name}"?`)) {
-      supabaseClient.from('services').delete().eq('id', service.id)
-        .then(({ error }) => {
-          if (error) throw error;
-          return loadAdminData();
-        })
-        .then(() => showAdminToast('Service deleted.'))
-        .catch((error) => reportError(error, 'Deleting service'));
+    } else if (button.classList.contains('toggle-service') && service) {
+      withBusyButton(button, 'Updating…', async () => {
+        await updateRecord('services', service.id, { active: !service.active });
+        await loadAdminData();
+        showAdminToast(`Service ${service.active ? 'deactivated' : 'activated'}.`);
+      }).catch((error) => reportError(error, 'Updating service status'));
+    } else if (button.classList.contains('delete-service') && service && window.confirm(`Permanently delete "${service.name}"? This cannot be undone.`)) {
+      withBusyButton(button, 'Deleting…', async () => {
+        await removeRecord('services', service.id);
+        await loadAdminData();
+        showAdminToast('Service deleted.');
+      }).catch((error) => reportError(error, 'Deleting service'));
     }
   });
 
   document.getElementById('gallery-list').addEventListener('click', (event) => {
+    if (!(event.target instanceof Element)) return;
     const button = event.target.closest('button[data-id]');
     if (!button) return;
     const photo = gallery.find((item) => item.id === button.dataset.id);
@@ -311,47 +493,88 @@ function bindListActions() {
       document.getElementById('gallery-image-url').value = photo.image_url || '';
       document.getElementById('gallery-caption').value = photo.caption || '';
       document.getElementById('gallery-published').checked = photo.published;
+      document.getElementById('gallery-image-file').value = '';
       document.getElementById('cancel-gallery-edit').classList.remove('hidden');
-    } else if (button.classList.contains('delete-gallery') && photo && window.confirm('Delete this gallery image?')) {
-      (async () => {
-        const { error } = await supabaseClient.from('gallery').delete().eq('id', photo.id);
-        if (error) throw error;
+      updateGalleryPreview(photo.image_url, photo.caption);
+    } else if (button.classList.contains('toggle-gallery') && photo) {
+      withBusyButton(button, 'Updating…', async () => {
+        await updateRecord('gallery', photo.id, { published: !photo.published });
+        await loadAdminData();
+        showAdminToast(`Gallery image ${photo.published ? 'unpublished' : 'published'}.`);
+      }).catch((error) => reportError(error, 'Updating gallery image status'));
+    } else if (button.classList.contains('delete-gallery') && photo && window.confirm('Permanently delete this gallery image and its stored file? This cannot be undone.')) {
+      withBusyButton(button, 'Deleting…', async () => {
+        await removeRecord('gallery', photo.id);
+        let storageError;
         if (photo.storage_path) {
-          const { error: storageError } = await supabaseClient.storage
-            .from('era-gallery')
+          const result = await supabaseClient.storage
+            .from(galleryBucket)
             .remove([photo.storage_path]);
-          if (storageError) throw storageError;
+          storageError = result.error;
         }
         await loadAdminData();
+        if (storageError) {
+          console.error('Gallery record deleted, but its stored image could not be removed:', storageError);
+          showAdminToast('Image record deleted, but its stored file could not be removed. Remove it from Supabase Storage manually.', 'error');
+          return;
+        }
         showAdminToast('Gallery image deleted.');
-      })().catch((error) => reportError(error, 'Deleting gallery image'));
+      }).catch((error) => reportError(error, 'Deleting gallery image'));
     }
   });
 
   document.getElementById('testimonial-list').addEventListener('click', (event) => {
+    if (!(event.target instanceof Element)) return;
     const button = event.target.closest('button[data-id]');
     if (!button) return;
     const review = testimonials.find((item) => item.id === button.dataset.id);
-    if (button.classList.contains('edit-review') && review) {
-      document.getElementById('testimonial-id').value = review.id;
-      document.getElementById('reviewer-name').value = review.name;
-      document.getElementById('review-date').value = review.review_date || '';
-      document.getElementById('review-rating').value = review.rating || 5;
-      document.getElementById('review-source').value = review.source || '';
-      document.getElementById('review-url').value = review.original_url || '';
-      document.getElementById('review-text').value = review.text || '';
-      document.getElementById('review-approved').checked = review.approved;
-      document.getElementById('cancel-review-edit').classList.remove('hidden');
-    } else if (button.classList.contains('delete-review') && review && window.confirm('Delete this review?')) {
-      supabaseClient.from('testimonials').delete().eq('id', review.id)
-        .then(({ error }) => {
-          if (error) throw error;
-          return loadAdminData();
-        })
-        .then(() => showAdminToast('Review deleted.'))
-        .catch((error) => reportError(error, 'Deleting review'));
+    if (button.classList.contains('review-approval') && review) {
+      const approved = button.dataset.approved === 'true';
+      withBusyButton(button, 'Updating…', async () => {
+        await updateRecord('testimonials', review.id, { approved });
+        await loadAdminData();
+        showAdminToast(`Review ${approved ? 'approved' : 'rejected'}.`);
+      }).catch((error) => reportError(error, 'Updating review approval'));
+    } else if (button.classList.contains('delete-review') && review && window.confirm(`Permanently delete the review by "${review.name}"? This cannot be undone.`)) {
+      withBusyButton(button, 'Deleting…', async () => {
+        await removeRecord('testimonials', review.id);
+        await loadAdminData();
+        showAdminToast('Review deleted.');
+      }).catch((error) => reportError(error, 'Deleting review'));
     }
   });
+}
+
+function updateGalleryPreview(url, caption = '', isLocalPreview = false) {
+  const preview = document.getElementById('gallery-preview');
+  const image = document.getElementById('gallery-preview-image');
+  const captionElement = document.getElementById('gallery-preview-caption');
+  if (galleryPreviewUrl.startsWith('blob:')) URL.revokeObjectURL(galleryPreviewUrl);
+
+  const safeUrl = isLocalPreview && url.startsWith('blob:') ? url : safeExternalUrl(url);
+  galleryPreviewUrl = safeUrl;
+  preview.classList.toggle('hidden', !safeUrl);
+  if (safeUrl) {
+    image.src = safeUrl;
+    image.alt = caption || 'Gallery image preview';
+    captionElement.textContent = caption;
+  } else {
+    image.removeAttribute('src');
+    image.alt = 'Gallery image preview';
+    captionElement.textContent = '';
+  }
+}
+
+async function validateGalleryFile(file) {
+  const format = allowedGalleryTypes.get(file.type);
+  if (!format || file.size === 0 || file.size > maxGalleryFileSize) {
+    throw new Error('Choose a non-empty JPG, PNG, WebP, or GIF image no larger than 10 MB.');
+  }
+  const signature = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  if (!format.signature(signature)) {
+    throw new Error('The image file contents do not match its selected file type.');
+  }
+  return format;
 }
 
 function bindForms() {
@@ -359,22 +582,35 @@ function bindForms() {
   serviceForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     try {
-      const id = document.getElementById('service-id').value;
-      const service = {
-        name: document.getElementById('service-name').value.trim(),
-        description: document.getElementById('service-description').value.trim(),
-        price_gh: Number(document.getElementById('service-price-gh').value || 0),
-        price_ng: Number(document.getElementById('service-price-ng').value || 0),
-        image_url: document.getElementById('service-image').value.trim(),
-        active: document.getElementById('service-active').checked
-      };
-      const result = id
-        ? await supabaseClient.from('services').update(service).eq('id', id)
-        : await supabaseClient.from('services').insert(service);
-      if (result.error) throw result.error;
-      resetForm(serviceForm, 'cancel-service-edit');
-      await loadAdminData();
-      showAdminToast('Service saved.');
+      await withBusyButton(event.submitter, 'Saving…', async () => {
+        const id = document.getElementById('service-id').value;
+        const imageInput = document.getElementById('service-image').value.trim();
+        const service = {
+          name: document.getElementById('service-name').value.trim(),
+          description: document.getElementById('service-description').value.trim(),
+          price_gh: document.getElementById('service-price-gh').valueAsNumber,
+          price_ng: document.getElementById('service-price-ng').valueAsNumber,
+          image_url: imageInput ? safeExternalUrl(imageInput) : '',
+          active: document.getElementById('service-active').checked
+        };
+        if (!id) service.display_order = nextDisplayOrder(services);
+        if (!service.name || !service.description) throw new Error('Enter a service name and description.');
+        if (!Number.isFinite(service.price_gh) || service.price_gh < 0 ||
+            !Number.isFinite(service.price_ng) || service.price_ng < 0) {
+          throw new Error('Enter a valid, non-negative price for each country.');
+        }
+        if (imageInput && !service.image_url) throw new Error('Service image URLs must use HTTPS.');
+
+        if (id) {
+          await updateRecord('services', id, service);
+        } else {
+          const { error } = await supabaseClient.from('services').insert(service);
+          if (error) throw error;
+        }
+        resetForm(serviceForm, 'cancel-service-edit');
+        await loadAdminData();
+        showAdminToast('Service saved.');
+      });
     } catch (error) {
       reportError(error, 'Saving service');
     }
@@ -383,111 +619,136 @@ function bindForms() {
   const galleryForm = document.getElementById('gallery-form');
   galleryForm.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const file = document.getElementById('gallery-image-file').files[0];
-    const id = document.getElementById('gallery-id').value;
-    const oldPhoto = gallery.find((item) => item.id === id);
-    const imageInput = document.getElementById('gallery-image-url');
-    let imageUrl = imageInput.value.trim();
-    let storagePath = oldPhoto?.storage_path || null;
-    let uploadedPath = null;
-    let recordSaved = false;
-
     try {
-      if (file) {
-        const supportedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-        if (!supportedTypes.includes(file.type) || file.size > 10 * 1024 * 1024) {
-          throw new Error('Choose a JPG, PNG, WebP, or GIF image smaller than 10 MB.');
-        }
-        const { data: userData, error: userError } = await supabaseClient.auth.getUser();
-        if (userError) throw userError;
-        if (!userData.user) throw new Error('Your administrator session has expired. Sign in again.');
-        uploadedPath = `${userData.user.id}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-        const { error: uploadError } = await supabaseClient.storage
-          .from('era-gallery')
-          .upload(uploadedPath, file, { contentType: file.type, upsert: false });
-        if (uploadError) throw uploadError;
-        imageUrl = supabaseClient.storage.from('era-gallery').getPublicUrl(uploadedPath).data.publicUrl;
-        storagePath = uploadedPath;
-      }
-      if (!imageUrl) throw new Error('Provide an image URL or choose an image file to upload.');
+      await withBusyButton(event.submitter, 'Saving…', async () => {
+        const fileInput = document.getElementById('gallery-image-file');
+        const file = fileInput.files[0];
+        const id = document.getElementById('gallery-id').value;
+        const oldPhoto = gallery.find((item) => item.id === id);
+        if (id && !oldPhoto) throw new Error('This gallery image is no longer available. Refresh and try again.');
+        const imageInput = document.getElementById('gallery-image-url');
+        let imageUrl = imageInput.value.trim();
+        let storagePath = oldPhoto?.storage_path || null;
+        let uploadedPath = null;
+        let recordSaved = false;
 
-      const photo = {
-        image_url: imageUrl,
-        storage_path: storagePath,
-        caption: document.getElementById('gallery-caption').value.trim(),
-        published: document.getElementById('gallery-published').checked
-      };
-      const result = id
-        ? await supabaseClient.from('gallery').update(photo).eq('id', id)
-        : await supabaseClient.from('gallery').insert(photo);
-      if (result.error) throw result.error;
-      recordSaved = true;
-      if (uploadedPath && oldPhoto?.storage_path) {
-        const { error: removeError } = await supabaseClient.storage
-          .from('era-gallery')
-          .remove([oldPhoto.storage_path]);
-        if (removeError) throw removeError;
-      }
-      resetForm(galleryForm, 'cancel-gallery-edit');
-      await loadAdminData();
-      showAdminToast('Gallery image saved.');
+        try {
+          if (file) {
+            const format = await validateGalleryFile(file);
+            const { data: userData, error: userError } = await supabaseClient.auth.getUser();
+            if (userError) throw userError;
+            if (!userData.user) throw new Error('Your administrator session has expired. Sign in again.');
+            if (!window.crypto?.randomUUID) throw new Error('Secure image uploads are not supported in this browser.');
+
+            uploadedPath = `${userData.user.id}/${window.crypto.randomUUID()}.${format.extension}`;
+            const { error: uploadError } = await supabaseClient.storage
+              .from(galleryBucket)
+              .upload(uploadedPath, file, { contentType: file.type, cacheControl: '3600', upsert: false });
+            if (uploadError) throw uploadError;
+            imageUrl = supabaseClient.storage.from(galleryBucket).getPublicUrl(uploadedPath).data.publicUrl;
+            storagePath = uploadedPath;
+          } else if (oldPhoto && imageUrl !== oldPhoto.image_url) {
+            storagePath = null;
+          }
+
+          imageUrl = safeExternalUrl(imageUrl);
+          if (!imageUrl) throw new Error('Provide a valid HTTPS image URL or choose a supported image file.');
+
+          const photo = {
+            image_url: imageUrl,
+            storage_path: storagePath,
+            caption: document.getElementById('gallery-caption').value.trim(),
+            published: document.getElementById('gallery-published').checked
+          };
+          if (id) {
+            await updateRecord('gallery', id, photo);
+          } else {
+            photo.display_order = nextDisplayOrder(gallery);
+            const { error } = await supabaseClient.from('gallery').insert(photo);
+            if (error) throw error;
+          }
+          recordSaved = true;
+
+          let cleanupWarning = false;
+          if (oldPhoto?.storage_path && oldPhoto.storage_path !== storagePath) {
+            const { error: removeError } = await supabaseClient.storage
+              .from(galleryBucket)
+              .remove([oldPhoto.storage_path]);
+            if (removeError) {
+              cleanupWarning = true;
+              console.error('Gallery image was saved, but the previous stored file could not be removed:', removeError);
+              showAdminToast('Image saved, but the previous stored file could not be removed. Remove it from Supabase Storage manually.', 'error');
+            }
+          }
+          resetForm(galleryForm, 'cancel-gallery-edit');
+          updateGalleryPreview('');
+          await loadAdminData();
+          if (!cleanupWarning) showAdminToast('Gallery image saved.');
+        } catch (error) {
+          if (uploadedPath && !recordSaved) {
+            const { error: cleanupError } = await supabaseClient.storage
+              .from(galleryBucket)
+              .remove([uploadedPath]);
+            if (cleanupError) {
+              console.error('Unable to remove the unused uploaded image:', cleanupError);
+              showAdminToast('The image could not be saved and its unused upload could not be removed. Check Supabase Storage.', 'error');
+            }
+          }
+          throw error;
+        }
+      });
     } catch (error) {
-      if (uploadedPath && !recordSaved) {
-        const { error: cleanupError } = await supabaseClient.storage
-          .from('era-gallery')
-          .remove([uploadedPath]);
-        if (cleanupError) console.error('Unable to remove the unused uploaded image:', cleanupError);
-      }
       reportError(error, 'Saving gallery image');
     }
   });
 
-  const testimonialForm = document.getElementById('testimonial-form');
-  testimonialForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
+  const imageInput = document.getElementById('gallery-image-url');
+  const captionInput = document.getElementById('gallery-caption');
+  const fileInput = document.getElementById('gallery-image-file');
+  const refreshGalleryPreview = () => {
+    if (!fileInput.files[0]) updateGalleryPreview(imageInput.value, captionInput.value);
+  };
+  imageInput.addEventListener('input', refreshGalleryPreview);
+  captionInput.addEventListener('input', refreshGalleryPreview);
+  fileInput.addEventListener('change', async () => {
+    const file = fileInput.files[0];
+    if (!file) return refreshGalleryPreview();
     try {
-      const id = document.getElementById('testimonial-id').value;
-      const review = {
-        name: document.getElementById('reviewer-name').value.trim(),
-        review_date: document.getElementById('review-date').value || null,
-        rating: Number(document.getElementById('review-rating').value || 5),
-        source: document.getElementById('review-source').value,
-        original_url: document.getElementById('review-url').value.trim(),
-        text: document.getElementById('review-text').value.trim(),
-        approved: document.getElementById('review-approved').checked
-      };
-      const result = id
-        ? await supabaseClient.from('testimonials').update(review).eq('id', id)
-        : await supabaseClient.from('testimonials').insert(review);
-      if (result.error) throw result.error;
-      resetForm(testimonialForm, 'cancel-review-edit');
-      await loadAdminData();
-      showAdminToast('Review saved.');
+      await validateGalleryFile(file);
+      updateGalleryPreview(URL.createObjectURL(file), captionInput.value, true);
     } catch (error) {
-      reportError(error, 'Saving review');
+      fileInput.value = '';
+      updateGalleryPreview(imageInput.value, captionInput.value);
+      showAdminToast(error.message, 'error');
     }
   });
 
   document.getElementById('content-form').addEventListener('submit', async (event) => {
     event.preventDefault();
-    const site = {
-      homepageHeadline: document.getElementById('content-headline').value.trim(),
-      aboutTitle: document.getElementById('content-about-title').value.trim(),
-      homepageIntro: document.getElementById('content-intro').value.trim(),
-      aboutText: document.getElementById('about-section').value.split(/\n\s*\n/).filter(Boolean),
-      whyChoose: document.getElementById('why-choose-section').value.split(/\n\s*\n/).filter(Boolean).map((entry) => {
-        const [title, ...rest] = entry.split(':');
-        return { icon: '✦', title: title.trim(), text: rest.join(':').trim() };
-      }),
-      bookingPolicy: document.getElementById('booking-policy-text').value.trim(),
-      footerCopy: document.getElementById('footer-copy-text').value.trim(),
-      instagramUrl: document.getElementById('content-instagram').value.trim(),
-      googleMapsReviewUrl: document.getElementById('content-google-maps').value.trim()
-    };
     try {
-      await saveSetting('site', site);
-      await loadAdminData();
-      showAdminToast('Website content saved successfully.');
+      await withBusyButton(event.submitter, 'Saving…', async () => {
+        const instagramInput = document.getElementById('content-instagram').value.trim();
+        const mapsInput = document.getElementById('content-google-maps').value.trim();
+        const site = {
+          homepageHeadline: document.getElementById('content-headline').value.trim(),
+          aboutTitle: document.getElementById('content-about-title').value.trim(),
+          homepageIntro: document.getElementById('content-intro').value.trim(),
+          aboutText: document.getElementById('about-section').value.split(/\n\s*\n/).map((text) => text.trim()).filter(Boolean),
+          whyChoose: document.getElementById('why-choose-section').value.split(/\n\s*\n/).map((entry) => {
+            const [title, ...rest] = entry.split(':');
+            return { icon: '✦', title: title.trim(), text: rest.join(':').trim() };
+          }).filter((item) => item.title && item.text),
+          bookingPolicy: document.getElementById('booking-policy-text').value.trim(),
+          footerCopy: document.getElementById('footer-copy-text').value.trim(),
+          instagramUrl: instagramInput ? safeExternalUrl(instagramInput) : '',
+          googleMapsReviewUrl: mapsInput ? safeExternalUrl(mapsInput) : ''
+        };
+        if (instagramInput && !site.instagramUrl) throw new Error('Instagram URLs must use HTTPS.');
+        if (mapsInput && !site.googleMapsReviewUrl) throw new Error('Google Maps URLs must use HTTPS.');
+        await saveSetting('site', site);
+        await loadAdminData();
+        showAdminToast('Website content saved successfully.');
+      });
     } catch (error) {
       reportError(error, 'Saving website content');
     }
@@ -495,59 +756,70 @@ function bindForms() {
 
   document.getElementById('region-form').addEventListener('submit', async (event) => {
     event.preventDefault();
-    const ghana = {
-      location: document.getElementById('ghana-location').value.trim(),
-      contactCopy: document.getElementById('ghana-contact-copy-input').value.trim(),
-      whatsapp: document.getElementById('ghana-whatsapp-input').value.trim(),
-      email: document.getElementById('ghana-email-input').value.trim(),
-      currency: document.getElementById('ghana-currency').value.trim(),
-      bookingInstructions: document.getElementById('ghana-booking').value.trim()
-    };
-    const nigeria = {
-      location: document.getElementById('nigeria-location').value.trim(),
-      contactCopy: document.getElementById('nigeria-contact-copy-input').value.trim(),
-      whatsapp: document.getElementById('nigeria-whatsapp-input').value.trim(),
-      email: document.getElementById('nigeria-email-input').value.trim(),
-      currency: document.getElementById('nigeria-currency').value.trim(),
-      bookingInstructions: document.getElementById('nigeria-booking').value.trim()
-    };
     try {
-      await Promise.all([saveSetting('ghana', ghana), saveSetting('nigeria', nigeria)]);
-      await loadAdminData();
-      showAdminToast('Regional settings saved successfully.');
+      await withBusyButton(event.submitter, 'Saving…', async () => {
+        const ghana = {
+          location: document.getElementById('ghana-location').value.trim(),
+          contactCopy: document.getElementById('ghana-contact-copy-input').value.trim(),
+          whatsapp: document.getElementById('ghana-whatsapp-input').value.trim(),
+          email: document.getElementById('ghana-email-input').value.trim(),
+          currency: document.getElementById('ghana-currency').value.trim(),
+          bookingInstructions: document.getElementById('ghana-booking').value.trim()
+        };
+        const nigeria = {
+          location: document.getElementById('nigeria-location').value.trim(),
+          contactCopy: document.getElementById('nigeria-contact-copy-input').value.trim(),
+          whatsapp: document.getElementById('nigeria-whatsapp-input').value.trim(),
+          email: document.getElementById('nigeria-email-input').value.trim(),
+          currency: document.getElementById('nigeria-currency').value.trim(),
+          bookingInstructions: document.getElementById('nigeria-booking').value.trim()
+        };
+        for (const [country, region] of Object.entries({ Ghana: ghana, Nigeria: nigeria })) {
+          if (!/^\+?[0-9\s().-]{7,20}$/.test(region.whatsapp)) {
+            throw new Error(`Enter a valid WhatsApp number for ${country}.`);
+          }
+        }
+        await saveSettings([
+          { key: 'ghana', value: ghana },
+          { key: 'nigeria', value: nigeria }
+        ]);
+        await loadAdminData();
+        showAdminToast('Regional settings saved successfully.');
+      });
     } catch (error) {
       reportError(error, 'Saving regional settings');
     }
   });
 
   document.getElementById('cancel-service-edit').addEventListener('click', () => resetForm(serviceForm, 'cancel-service-edit'));
-  document.getElementById('cancel-gallery-edit').addEventListener('click', () => resetForm(galleryForm, 'cancel-gallery-edit'));
-  document.getElementById('cancel-review-edit').addEventListener('click', () => resetForm(testimonialForm, 'cancel-review-edit'));
+  document.getElementById('cancel-gallery-edit').addEventListener('click', () => {
+    resetForm(galleryForm, 'cancel-gallery-edit');
+    updateGalleryPreview('');
+  });
 }
 
 async function handleLogin(event) {
   event.preventDefault();
+  const form = event.currentTarget;
+  const passwordInput = document.getElementById('admin-password');
   if (!supabaseClient) {
     setAuthMessage('Add your Supabase project URL and publishable key to supabase-config.js before signing in.');
     return;
   }
-  const email = document.getElementById('admin-email').value.trim();
-  const password = document.getElementById('admin-password').value;
-  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-  if (error) {
-    setAuthMessage(error.message);
-    return;
-  }
   try {
-    const authorized = await checkAdminAccess();
-    if (authorized) {
-      setAuthMessage('Signed in successfully.', true);
-      event.currentTarget.reset();
-    }
-  } catch (accessError) {
-    await supabaseClient.auth.signOut();
-    setAdminSessionState(false);
-    setAuthMessage(accessError.message);
+    await withBusyButton(form.querySelector('button[type="submit"]'), 'Verifying…', async () => {
+      const email = document.getElementById('admin-email').value.trim();
+      const password = passwordInput.value;
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      passwordInput.value = '';
+      if (error) throw error;
+      const authorized = await checkAdminAccess();
+      if (authorized) form.reset();
+    });
+  } catch (error) {
+    passwordInput.value = '';
+    setAdminSessionState('signed-out');
+    setAuthMessage(error?.message || 'Unable to verify administrator access. Please try again.');
   }
 }
 
@@ -558,30 +830,52 @@ function initializeAdmin() {
   document.getElementById('admin-login-form').addEventListener('submit', (event) => {
     handleLogin(event).catch((error) => reportError(error, 'Signing in'));
   });
-  document.getElementById('logout-button').addEventListener('click', async () => {
+  document.getElementById('logout-button').addEventListener('click', async (event) => {
     if (!supabaseClient) return;
-    const { error } = await supabaseClient.auth.signOut();
-    if (error) return reportError(error, 'Signing out');
-    setAdminSessionState(false);
-    setAuthMessage('Signed out successfully.', true);
+    try {
+      await withBusyButton(event.currentTarget, 'Signing out…', async () => {
+        const { error } = await supabaseClient.auth.signOut();
+        if (error) throw error;
+        setAdminSessionState('signed-out');
+        setAuthMessage('Signed out successfully.', true);
+      });
+    } catch (error) {
+      reportError(error, 'Signing out');
+    }
   });
 
   if (!supabaseClient) {
-    setAdminSessionState(false);
+    setAdminSessionState('signed-out');
     setAuthMessage('Configure Supabase in supabase-config.js to enable owner sign-in.');
     return;
   }
 
-  supabaseClient.auth.onAuthStateChange((event) => {
-    if (event === 'SIGNED_OUT') setAdminSessionState(false);
+  supabaseClient.auth.onAuthStateChange((event, session) => {
+    authStateRevision += 1;
+    if (event === 'SIGNED_OUT' || !session) {
+      window.clearTimeout(authCheckTimer);
+      pendingAccessRecheck = false;
+      setAdminSessionState('signed-out');
+      return;
+    }
+    setAdminSessionState('checking');
+    window.clearTimeout(authCheckTimer);
+    authCheckTimer = window.setTimeout(() => {
+      checkAdminAccess().catch((error) => {
+        setAdminSessionState('signed-out');
+        setAuthMessage('Unable to verify administrator access. Check your connection and try again.');
+        reportError(error, 'Verifying administrator access');
+      });
+    }, 0);
   });
   supabaseClient.auth.getSession().then(({ data, error }) => {
     if (error) throw error;
     if (data.session) return checkAdminAccess();
-    setAdminSessionState(false);
+    setAdminSessionState('signed-out');
   }).catch((error) => {
-    setAdminSessionState(false);
-    setAuthMessage(error.message);
+    setAdminSessionState('signed-out');
+    setAuthMessage('Unable to verify administrator access. Check your connection and try again.');
+    reportError(error, 'Checking administrator session');
   });
 }
 
