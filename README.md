@@ -6,59 +6,49 @@ A static, responsive website for The Era Wellness & Bodywork in Ghana and Nigeri
 
 - `index.html`, `styles.css`, and `app.js` — public website and booking form.
 - `admin/` — owner CMS and dashboard.
-- `supabase-config.js` — public Supabase URL and publishable key placeholders.
-- `database.sql` — Supabase schema, seed content, RLS policies, and gallery Storage setup.
+- `supabase-config.js` — the existing Supabase project URL and publishable key.
 - `netlify.toml` — static publish directory and site routing.
 
 The site has no build step, package installation, or local database requirement.
 
 ## Supabase setup
 
-1. Create a Supabase project.
-2. In **Project Settings → API**, copy the project URL and the publishable key.
-3. Edit `supabase-config.js` and replace the two placeholder values:
+The website retains its existing Supabase project URL and publishable key in `supabase-config.js`. Do not replace them unless intentionally connecting the site to a different project. The publishable key is designed for browser use; never put a service-role or other secret key in frontend code.
 
-   ```js
-   window.ERA_SUPABASE_CONFIG = {
-     url: 'https://YOUR-PROJECT-REF.supabase.co',
-     publishableKey: 'YOUR_SUPABASE_PUBLISHABLE_KEY'
-   };
-   ```
+Database objects and policies are managed in the Supabase Dashboard. This repository does not create, migrate, seed, or verify the live database. Use the Dashboard to create or confirm the following application contract before relying on live CMS or administrator features.
 
-   Use the URL and publishable key from your own project; do not put a service-role or secret key in this file. The publishable key is intended for browser use and is restricted by the database's RLS policies.
+### Expected tables and columns
 
-4. Open **SQL Editor** in the Supabase dashboard, paste the contents of `database.sql`, and run it. This creates the services, gallery, testimonials, settings, and administrator tables; seeds the existing site content; enables RLS; and creates the `era-gallery` Storage bucket and its policies.
+- `public.services`: `id` (UUID), `name` (text), `description` (text), `image_url` (text), `price_gh` and `price_ng` (numeric), `active` (boolean), `display_order` (integer), and `created_at` / `updated_at` timestamps.
+- `public.gallery`: `id` (UUID), `image_url` (text), `storage_path` (nullable text), `caption` (text), `published` (boolean), `display_order` (integer), and `created_at` / `updated_at` timestamps.
+- `public.testimonials`: `id` (UUID), `name` (text), `review_date` (nullable date), `rating` (integer), `source` (text), `original_url` (text), `text` (text), `approved` (boolean), and `created_at` / `updated_at` timestamps.
+- `public.site_settings`: `id` (UUID), unique `key` (text), `value` (JSONB), and `updated_at` timestamp. The site reads the `site`, `ghana`, and `nigeria` settings.
+- `public.admin_users`: `user_id` (UUID referencing `auth.users.id`) and `created_at` timestamp. A row identifies an account allowed to administer the CMS.
 
-   The script can be run again safely for its schema, policies, and seed records. It adds the `storage_path` field to an already-created gallery table. Any previous booking records in Supabase are left in place but are no longer used by the site.
+The admin app also expects an authenticated-only `public.is_admin()` database function that returns whether the current authenticated user is listed in `public.admin_users`. The browser calls this function to authorize the dashboard; signing in alone must not grant CMS access.
+
+### Expected access policies
+
+Enable Row Level Security on the application tables and configure policies in the Supabase Dashboard to match these behaviors:
+
+- Anonymous and authenticated visitors can read active services, published gallery items, approved testimonials, and public site settings.
+- Only authenticated administrators can create, edit, or delete services, gallery items, testimonials, and site settings.
+- An authenticated user can read only their own `admin_users` row. Administrator membership must be managed with privileged Dashboard access, not a public frontend write policy.
+- The `is_admin()` function can be called by authenticated users and must check the current user's membership.
+
+Do not grant public writes to CMS tables or expose a service-role credential in this website.
 
 ## Administrator account and security
 
 1. In Supabase **Authentication → Users**, create the owner's account. Disable public sign-up if it is enabled; the owner account should be provisioned from the dashboard.
-2. Copy that user's UUID and add it to the allowlist from the Supabase SQL Editor:
-
-   ```sql
-   insert into public.admin_users (user_id)
-   values ('PASTE-AUTH-USER-UUID-HERE')
-   on conflict do nothing;
-   ```
-
-   Alternatively, insert the user by email:
-
-   ```sql
-   insert into public.admin_users (user_id)
-   select id
-   from auth.users
-   where email = 'OWNER-EMAIL-HERE'
-   on conflict do nothing;
-   ```
-
+2. Use privileged Supabase Dashboard access to add the account's UUID to `public.admin_users` and confirm the `is_admin()` function and RLS policies match the expectations above.
 3. Visit `/admin/` on the deployed site and sign in with that Supabase account.
 
-The CMS checks the `is_admin()` database function after authentication. RLS permits public reads only for active services, published gallery items, approved testimonials, and public website settings. CMS writes and Storage uploads/deletes are restricted to users listed in `admin_users`; being signed in alone does not grant administrator access. Booking submissions are handled by Netlify Forms, not stored in Supabase.
+The repository does not confirm that these objects or policies exist in the live project. If they are missing or differ, public data reads, CMS writes, or administrator access may fail.
 
 ## Storage and CMS
 
-The SQL script creates a public-read `era-gallery` bucket, restricted to image types and 10 MB per file. Public image display requires public read access; uploads, updates, and deletes require an allowlisted administrator. Use the CMS at `/admin/` to:
+Create or verify the `era-gallery` bucket in the Supabase Dashboard. The application expects public image reads, image uploads limited to JPG, PNG, WebP, or GIF files up to 10 MB, and upload/update/delete permissions restricted to authenticated administrators. Use the CMS at `/admin/` to:
 
 - Create, edit, hide, and delete services, including separate Ghana and Nigeria prices.
 - Upload gallery images to Supabase Storage or supply an existing HTTPS image URL.
@@ -66,19 +56,19 @@ The SQL script creates a public-read `era-gallery` bucket, restricted to image t
 - Update homepage text, Instagram and Google Maps review links, and the 50% deposit policy.
 - Update country-specific locations, contact descriptions, email addresses, currencies, and WhatsApp numbers.
 
-The `Google Maps review URL` is intentionally blank until the owner supplies the correct business link. The existing Instagram link and regional WhatsApp numbers are prefilled and can be changed in the CMS.
+The Google Maps review links use the business profile URL supplied for this site. The owner can update that URL, the Instagram link, and regional WhatsApp numbers in the CMS. The four supplied Google review links are shown with their reviewer names; add review wording, dates, or ratings only when the exact details have been verified.
 
 ## Netlify deployment and booking enquiries
 
 1. Connect the repository to Netlify and publish the repository root (`.`). No build command is required.
-2. Deploy after setting the Supabase values in `supabase-config.js`.
+2. Before deploying, confirm `supabase-config.js` still points to the intended Supabase project and uses its publishable key.
 3. In the Netlify site dashboard, confirm that form detection is enabled and that `booking-enquiry` appears under **Forms**. If it is not detected, enable form detection and trigger a new deploy.
 4. Review customer submissions in **Netlify → Forms → booking-enquiry**.
 
-The form captures name, email, phone/WhatsApp number, country, service, preferred date and time, home/hotel session type, location, notes, and acknowledgement of the 50% deposit policy. Its WhatsApp link uses the number configured for the selected country. The admin dashboard links to Netlify for booking submissions; it does not attempt to access private Netlify data from the browser.
+The form captures name, phone/WhatsApp number, optional email, country, service, preferred date and time, home/hotel session type, location, notes, and acknowledgement of the 50% deposit policy. Its WhatsApp link uses the number configured for the selected country. The admin dashboard links to Netlify for booking submissions; it does not attempt to access private Netlify data from the browser.
 
 ## Existing features and setup notes
 
 The homepage, services, reviews, gallery, contact sections, Ghana/Nigeria pricing, country-specific WhatsApp routing, Instagram link, theme toggle, and responsive layout are retained. The public website uses Supabase content when configured and includes the current content as a preview fallback before configuration or if public reads fail; check the browser console if Supabase content cannot be loaded.
 
-Before launch, verify that the seeded testimonial text is approved for publication and replace it if needed. Add the real Google Maps review URL in the CMS. The business owner must configure the Supabase project, publishable key, administrator account, and Netlify site/forms as described above.
+Before launch, add exact customer review wording in the CMS only when it has been verified. A booking enquiry is not an appointment confirmation: the business must confirm availability and receive the required 50% deposit. The business owner must configure and verify the Supabase Dashboard objects, administrator account, and Netlify site/forms as described above.
