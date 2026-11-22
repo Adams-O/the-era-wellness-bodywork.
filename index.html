@@ -214,7 +214,13 @@
               <div id="booking-policy" class="booking-policy"></div>
             </div>
             <div class="booking-form-card">
-              <h3>Send a booking enquiry</h3>
+              <div class="booking-form-heading">
+                <p class="eyebrow">Begin your wellness journey</p>
+                <h3 id="booking-form-title">Send a Booking Enquiry</h3>
+                <p id="booking-form-intro" class="booking-form-intro">
+                  Tell us a little about your preferred wellness experience. Our team will get back to you to confirm availability and discuss your booking.
+                </p>
+              </div>
               <form
                 id="booking-form"
                 name="booking-enquiry"
@@ -222,71 +228,93 @@
                 action="/?booking=success#booking"
                 data-netlify="true"
                 netlify-honeypot="bot-field"
+                aria-labelledby="booking-form-title"
+                aria-describedby="booking-form-intro"
               >
                 <input type="hidden" name="form-name" value="booking-enquiry" />
                 <p class="hidden">
                   <label>Leave this field empty: <input name="bot-field" /></label>
                 </p>
-                <div class="row g-3">
-                  <div class="col-md-6">
-                    <label for="booking-name">Full name</label>
-                    <input id="booking-name" name="name" type="text" autocomplete="name" required />
-                  </div>
-                  <div class="col-md-6">
-                    <label for="booking-phone">Phone number</label>
-                    <input id="booking-phone" name="phone" type="tel" autocomplete="tel" required />
-                  </div>
-                  <div class="col-md-6">
-                    <label for="booking-email">Email address <span class="optional-label">(optional)</span></label>
-                    <input id="booking-email" name="email" type="email" autocomplete="email" />
-                  </div>
-                  <div class="col-md-6">
-                    <label for="booking-country">Country</label>
-                    <select id="booking-country" name="country" required>
-                      <option value="Ghana" selected>Ghana</option>
-                      <option value="Nigeria">Nigeria</option>
-                    </select>
-                  </div>
-                  <div class="col-md-6">
-                    <label for="booking-service">Service requested</label>
-                    <select id="booking-service" name="service" required></select>
-                  </div>
-                  <div class="col-md-6">
-                    <label for="booking-date">Preferred date</label>
-                    <input id="booking-date" name="preferred-date" type="date" required />
-                  </div>
-                  <div class="col-md-6">
-                    <label for="booking-time">Preferred time</label>
-                    <input id="booking-time" name="preferred-time" type="time" required />
-                  </div>
-                  <div class="col-md-6">
-                    <label for="booking-session-type">Location type</label>
-                    <select id="booking-session-type" name="session-type" required>
-                      <option value="Home" selected>Home</option>
-                      <option value="Hotel">Hotel</option>
-                    </select>
-                  </div>
-                  <div class="col-12">
-                    <label for="booking-location">Address or area</label>
-                    <input id="booking-location" name="location" type="text" autocomplete="street-address" required />
-                  </div>
-                  <div class="col-12">
-                    <label for="booking-notes">Additional information <span class="optional-label">(optional)</span></label>
-                    <textarea id="booking-notes" name="notes" rows="4" placeholder="Share any special requests."></textarea>
-                  </div>
-                  <div class="col-12 checkbox-row">
-                    <label for="deposit-policy">
-                      <input id="deposit-policy" name="deposit-policy-acknowledged" type="checkbox" value="yes" required />
-                      I understand a 50% deposit is required to secure a confirmed booking.
-                    </label>
-                  </div>
-                  <div class="col-12">
-                    <div class="booking-actions">
-                      <button id="booking-submit" class="btn btn-primary" type="submit">Send enquiry</button>
-                      <a id="booking-whatsapp" class="btn btn-secondary hidden" href="#" target="_blank" rel="noopener noreferrer">Continue on WhatsApp</a>
+                <fieldset class="booking-form-section">
+                  <legend>Your Details</legend>
+                  <div class="row">
+                    <div class="col-12 col-md-6">
+                      <label for="booking-name">Full Name</label>
+                      <input id="booking-name" name="name" type="text" autocomplete="name" placeholder="Enter your full name" required />
                     </div>
-                    <p id="booking-form-status" class="form-status" role="status" aria-live="polite"></p>
+                    <div class="col-12 col-md-6">
+                      <label for="booking-phone">Phone Number</label>
+                      <input id="booking-phone" name="phone" type="tel" autocomplete="tel" placeholder="Phone number" required />
+                    </div>
+                    <div class="col-12 col-md-6">
+                      <label for="booking-email">Email Address <span class="optional-label">(optional)</span></label>
+                      <input id="booking-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" />
+                    </div>
+                    <div class="col-12 col-md-6">
+                      <label for="booking-country">Country</label>
+                      <select id="booking-country" name="country" required>
+                        <option value="Ghana" selected>Ghana</option>
+                        <option value="Nigeria">Nigeria</option>
+                      </select>
+                    </div>
                   </div>
+                </fieldset>
+                <fieldset class="booking-form-section">
+                  <legend>Your Wellness Experience</legend>
+                  <div class="row">
+                    <div class="col-12 col-md-6">
+                      <label for="booking-service">Select a Service</label>
+                      <select id="booking-service" name="service" required></select>
+                    </div>
+                    <div class="col-12 col-md-6">
+                      <label for="booking-date">Preferred Date</label>
+                      <input id="booking-date" name="preferred-date" type="date" required />
+                    </div>
+                    <div class="col-12 col-md-6">
+                      <label for="booking-time">Preferred Time</label>
+                      <input id="booking-time" name="preferred-time" type="time" required />
+                    </div>
+                  </div>
+                </fieldset>
+                <fieldset class="booking-form-section">
+                  <legend>Your Location</legend>
+                  <div class="row">
+                    <div class="col-12 col-md-6">
+                      <label for="booking-session-type">Location Type</label>
+                      <select id="booking-session-type" name="session-type" required>
+                        <option value="Home" selected>Home</option>
+                        <option value="Hotel">Hotel</option>
+                      </select>
+                    </div>
+                    <div class="col-12 col-md-6">
+                      <label for="booking-location">Address / Area</label>
+                      <input id="booking-location" name="location" type="text" autocomplete="street-address" placeholder="City or hotel area" required />
+                    </div>
+                  </div>
+                </fieldset>
+                <fieldset class="booking-form-section">
+                  <legend>Additional Information</legend>
+                  <div class="row">
+                    <div class="col-12">
+                      <label for="booking-notes">Additional Notes or Special Requests <span class="optional-label">(optional)</span></label>
+                      <textarea id="booking-notes" name="notes" rows="3" placeholder="Share any special requests or details that will help us prepare."></textarea>
+                    </div>
+                    <div class="col-12">
+                      <div class="checkbox-row">
+                        <label for="deposit-policy">
+                          <input id="deposit-policy" name="deposit-policy-acknowledged" type="checkbox" value="yes" required />
+                          <span>I understand a 50% deposit is required to secure a booking. An appointment is confirmed only after the business approves availability and receives the deposit.</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </fieldset>
+                <div class="booking-form-footer">
+                  <div class="booking-actions">
+                    <button id="booking-submit" class="btn btn-primary booking-submit" type="submit">SEND BOOKING ENQUIRY</button>
+                    <a id="booking-whatsapp" class="btn btn-secondary hidden" href="#" target="_blank" rel="noopener noreferrer">Continue on WhatsApp</a>
+                  </div>
+                  <p id="booking-form-status" class="form-status" role="status" aria-live="polite"></p>
                 </div>
               </form>
             </div>

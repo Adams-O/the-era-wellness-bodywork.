@@ -466,9 +466,12 @@ function initializeBookingForm() {
       submitted = false;
       if (submitButton) {
         submitButton.disabled = false;
-        submitButton.textContent = 'Send enquiry';
+        submitButton.textContent = 'SEND BOOKING ENQUIRY';
       }
-      if (status) status.textContent = '';
+      if (status) {
+        status.textContent = '';
+        delete status.dataset.state;
+      }
     }
     updateBookingWhatsApp();
   };
@@ -479,7 +482,10 @@ function initializeBookingForm() {
     event.preventDefault();
     submitting = true;
     if (submitButton) submitButton.disabled = true;
-    if (status) status.textContent = 'Sending your enquiry…';
+    if (status) {
+      status.dataset.state = 'sending';
+      status.textContent = 'Sending your enquiry…';
+    }
     try {
       const body = new URLSearchParams(new FormData(form));
       const response = await fetch('/', {
@@ -489,11 +495,17 @@ function initializeBookingForm() {
       });
       if (!response.ok) throw new Error(`Netlify Forms returned HTTP ${response.status}`);
       submitted = true;
-      if (status) status.textContent = 'Thank you. Your enquiry has been sent. We will confirm availability with you. Your appointment is confirmed only after we confirm availability and receive the required 50% deposit.';
-      if (submitButton) submitButton.textContent = 'Enquiry sent';
+      if (status) {
+        status.dataset.state = 'success';
+        status.textContent = 'Thank you for choosing The Era Wellness & Bodywork. Your enquiry has been received. Our team will contact you to confirm availability and discuss the next steps. An appointment is confirmed only after the business approves availability and receives the required 50% deposit.';
+      }
+      if (submitButton) submitButton.textContent = 'ENQUIRY SENT';
     } catch (error) {
       console.error('Unable to submit booking enquiry to Netlify Forms:', error);
-      if (status) status.textContent = 'We could not submit your enquiry. Please try again or contact us on WhatsApp below.';
+      if (status) {
+        status.dataset.state = 'error';
+        status.textContent = 'We could not submit your enquiry. Please try again or contact us on WhatsApp below.';
+      }
     } finally {
       submitting = false;
       if (!submitted && submitButton) submitButton.disabled = false;
@@ -552,6 +564,14 @@ function initializeFloatingWhatsApp() {
 
   bookingForm?.addEventListener('change', updateLink);
   updateLink();
+
+  const bookingCard = document.querySelector('.booking-form-card');
+  if (bookingCard && 'IntersectionObserver' in window) {
+    const observer = new IntersectionObserver(([entry]) => {
+      link.classList.toggle('booking-form-visible', entry.isIntersecting);
+    });
+    observer.observe(bookingCard);
+  }
 }
 
 function initializeMobileNavigation() {
