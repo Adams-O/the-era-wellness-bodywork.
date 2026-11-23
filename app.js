@@ -217,15 +217,16 @@ async function loadSiteContent() {
       ? defaultContent.services
       : (servicesResult.data.length
         ? servicesResult.data.map((service) => {
+          const normalizedName = String(service.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
           const fallback = defaultContent.services.find(
-            (candidate) => candidate.name.trim().toLowerCase() === String(service.name || '').trim().toLowerCase()
+            (candidate) => candidate.name.trim().toLowerCase().replace(/\s+/g, ' ') === normalizedName
           );
           const ngPrice = Number(service.price_ng);
           return {
             ...service,
             price_gh: Number(service.price_gh) > 0 ? service.price_gh : fallback?.price_gh,
             price_ng: Number.isFinite(ngPrice) && ngPrice > 0 ? service.price_ng : fallback?.price_ng,
-            image: service.image_url
+            image: safeExternalUrl(service.image_url) || fallback?.image || ''
           };
         })
         : defaultContent.services),
@@ -571,19 +572,11 @@ function initializeBookingForm() {
       String(today.getDate()).padStart(2, '0')
     ].join('-');
   }
-  let submitted = false;
   let submitting = false;
   const refreshBookingActions = () => {
-    if (submitted && !submitting) {
-      submitted = false;
-      if (submitButton) {
-        submitButton.disabled = false;
-        submitButton.textContent = 'SEND BOOKING ENQUIRY';
-      }
-      if (status) {
-        status.textContent = '';
-        delete status.dataset.state;
-      }
+    if (status && status.dataset.state === 'success' && !submitting) {
+      status.textContent = '';
+      delete status.dataset.state;
     }
     updateBookingWhatsApp();
   };
@@ -593,6 +586,7 @@ function initializeBookingForm() {
   updateBookingWhatsApp();
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
+    if (submitting) return;
     updateSelectedServicePrice();
     if (!form.checkValidity()) {
       form.reportValidity();
@@ -612,21 +606,30 @@ function initializeBookingForm() {
         body: body.toString()
       });
       if (!response.ok) throw new Error(`Netlify Forms returned HTTP ${response.status}`);
-      submitted = true;
+      form.reset();
+      updateSelectedServicePrice();
+      updateBookingWhatsApp();
       if (status) {
         status.dataset.state = 'success';
-        status.textContent = 'Thank you for choosing The Era Wellness & Bodywork. Your enquiry has been received. Our team will contact you to confirm availability and discuss the next steps. An appointment is confirmed only after the business approves availability and receives the required 50% deposit.';
+        status.textContent = 'Your booking request has been received successfully! Thank you for choosing The Era Wellness & Bodywork. We will contact you shortly to confirm availability and booking arrangements.';
       }
-      if (submitButton) submitButton.textContent = 'ENQUIRY SENT';
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = 'SEND BOOKING ENQUIRY';
+      }
     } catch (error) {
       console.error('Unable to submit booking enquiry to Netlify Forms:', error);
       if (status) {
         status.dataset.state = 'error';
         status.textContent = 'We could not submit your enquiry. Please try again or contact us on WhatsApp below.';
       }
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = 'SEND BOOKING ENQUIRY';
+      }
     } finally {
       submitting = false;
-      if (!submitted && submitButton) submitButton.disabled = false;
+      if (submitButton) submitButton.disabled = false;
     }
   });
 }

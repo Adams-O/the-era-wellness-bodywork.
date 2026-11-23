@@ -51,7 +51,7 @@ Use Supabase's available MFA controls for administrator accounts.
 
 Create or verify the `era-gallery` bucket in the Supabase Dashboard. The application expects public image reads, image uploads limited to JPG, PNG, WebP, or GIF files up to 10 MB, and upload/update/delete permissions restricted to authenticated administrators. Use the CMS at `/admin/` to:
 
-- Create, edit, activate/deactivate, and delete services, including separate Ghana and Nigeria prices.
+- Create, edit, activate/deactivate, and delete services, including separate Ghana and Nigeria prices. New services require their own HTTPS image URL or uploaded image; the six built-in services use their matching default images if an existing database row has no valid image URL.
 - Upload and preview JPG, PNG, WebP, or GIF gallery images up to 10 MB in `era-gallery`, or supply an existing HTTPS image URL; publish, unpublish, and delete gallery items.
 - View testimonials and approve, reject, or delete them. The dashboard does not invent or edit review text.
 - Update homepage text, Instagram and Google Maps review links, and the 50% deposit policy.

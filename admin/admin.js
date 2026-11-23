@@ -49,13 +49,20 @@ let authStateRevision = 0;
 let pendingAccessRecheck = false;
 
 const requiredServices = [
-  { name: 'Nuru Massage', description: 'A fluid, full-body wellness experience designed for deep relaxation.', price_gh: 1500, price_ng: 172000, display_order: 0 },
-  { name: 'Signature Swedish', description: 'A soothing signature ritual designed to relax and restore the nervous system.', price_gh: 700, price_ng: 80000, display_order: 1 },
-  { name: 'Deep Tissue Recovery', description: 'A targeted therapy for muscle tension, stress and recovery.', price_gh: 700, price_ng: 80000, display_order: 2 },
-  { name: 'Hot Stone Healing', description: 'Warm stones and mindful bodywork encourage deep release and calm.', price_gh: 800, price_ng: 92000, display_order: 3 },
-  { name: 'Foot Massage', description: 'Focused foot and lower-leg care for tiredness and everyday tension.', price_gh: 300, price_ng: 34000, display_order: 4 },
-  { name: 'Hand Massage', description: 'Gentle, restorative care for hands and forearms.', price_gh: 200, price_ng: 23000, display_order: 5 }
+  { name: 'Nuru Massage', description: 'A fluid, full-body wellness experience designed for deep relaxation.', image_url: 'https://images.unsplash.com/photo-1515377905703-c4788e51af15?auto=format&fit=crop&w=900&q=80', price_gh: 1500, price_ng: 172000, display_order: 0 },
+  { name: 'Signature Swedish', description: 'A soothing signature ritual designed to relax and restore the nervous system.', image_url: 'https://images.unsplash.com/photo-1519823551278-64ac92734fb1?auto=format&fit=crop&w=900&q=80', price_gh: 700, price_ng: 80000, display_order: 1 },
+  { name: 'Deep Tissue Recovery', description: 'A targeted therapy for muscle tension, stress and recovery.', image_url: 'https://images.unsplash.com/photo-1521590832167-7bcbfaa6381f?auto=format&fit=crop&w=900&q=80', price_gh: 700, price_ng: 80000, display_order: 2 },
+  { name: 'Hot Stone Healing', description: 'Warm stones and mindful bodywork encourage deep release and calm.', image_url: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=900&q=80', price_gh: 800, price_ng: 92000, display_order: 3 },
+  { name: 'Foot Massage', description: 'Focused foot and lower-leg care for tiredness and everyday tension.', image_url: 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?auto=format&fit=crop&w=900&q=80', price_gh: 300, price_ng: 34000, display_order: 4 },
+  { name: 'Hand Massage', description: 'Gentle, restorative care for hands and forearms.', image_url: 'https://images.unsplash.com/photo-1519415510236-718bdfcd89c8?auto=format&fit=crop&w=900&q=80', price_gh: 200, price_ng: 23000, display_order: 5 }
 ];
+
+function getRequiredServiceImage(name) {
+  const normalizedName = String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return requiredServices.find((service) =>
+    service.name.toLowerCase().replace(/\s+/g, ' ') === normalizedName
+  )?.image_url || '';
+}
 
 function escapeHtml(value = '') {
   return String(value).replace(/[&<>"']/g, (character) => ({
@@ -292,6 +299,9 @@ async function ensureRequiredServices() {
       if (existing.display_order === null || existing.display_order === undefined) {
         updates.display_order = required.display_order;
       }
+      if (!safeExternalUrl(existing.image_url)) {
+        updates.image_url = required.image_url;
+      }
       if (Object.keys(updates).length) {
         await updateRecord('services', existing.id, updates);
         changed = true;
@@ -301,7 +311,6 @@ async function ensureRequiredServices() {
       if (!duplicate) {
         const { error } = await supabaseClient.from('services').insert({
           ...required,
-          image_url: '',
           active: true
         });
         if (error) throw error;
@@ -371,22 +380,25 @@ function renderOverview() {
 }
 
 function renderServicesList() {
-  document.getElementById('service-list').innerHTML = services.map((service) => `
-    <div class="list-item">
-      <div class="list-item-head">
-        <strong>${escapeHtml(service.name)}</strong>
-        <small>${service.active ? 'Active' : 'Inactive'}</small>
+  document.getElementById('service-list').innerHTML = services.map((service) => {
+    const imageUrl = safeExternalUrl(service.image_url) || getRequiredServiceImage(service.name);
+    return `
+      <div class="list-item">
+        <div class="list-item-head">
+          <strong>${escapeHtml(service.name)}</strong>
+          <small>${service.active ? 'Active' : 'Inactive'}</small>
+        </div>
+        <p class="muted">${escapeHtml(service.description)}</p>
+        ${imageUrl ? `<img class="admin-list-image" src="${escapeHtml(imageUrl)}" alt="${escapeHtml(service.name)}" loading="lazy" decoding="async">` : ''}
+        <div class="muted">GHS ${escapeHtml(formatPrice(service.price_gh, 'en-GH'))} • NGN ${escapeHtml(formatPrice(service.price_ng, 'en-NG'))}</div>
+        <div class="list-item-actions">
+          <button type="button" class="btn btn-secondary edit-service" data-id="${escapeHtml(service.id)}">Edit</button>
+          <button type="button" class="btn btn-secondary toggle-service" data-id="${escapeHtml(service.id)}" aria-label="${service.active ? 'Deactivate' : 'Activate'} ${escapeHtml(service.name)}">${service.active ? 'Deactivate' : 'Activate'}</button>
+          <button type="button" class="btn btn-secondary delete-service" data-id="${escapeHtml(service.id)}">Delete</button>
+        </div>
       </div>
-      <p class="muted">${escapeHtml(service.description)}</p>
-      ${safeExternalUrl(service.image_url) ? `<img class="admin-list-image" src="${escapeHtml(safeExternalUrl(service.image_url))}" alt="${escapeHtml(service.name)}" loading="lazy" decoding="async">` : ''}
-      <div class="muted">GHS ${escapeHtml(formatPrice(service.price_gh, 'en-GH'))} • NGN ${escapeHtml(formatPrice(service.price_ng, 'en-NG'))}</div>
-      <div class="list-item-actions">
-        <button type="button" class="btn btn-secondary edit-service" data-id="${escapeHtml(service.id)}">Edit</button>
-        <button type="button" class="btn btn-secondary toggle-service" data-id="${escapeHtml(service.id)}" aria-label="${service.active ? 'Deactivate' : 'Activate'} ${escapeHtml(service.name)}">${service.active ? 'Deactivate' : 'Activate'}</button>
-        <button type="button" class="btn btn-secondary delete-service" data-id="${escapeHtml(service.id)}">Delete</button>
-      </div>
-    </div>
-  `).join('') || '<p class="muted">No services have been added yet.</p>';
+    `;
+  }).join('') || '<p class="muted">No services have been added yet.</p>';
 }
 
 function renderGalleryList() {
@@ -535,7 +547,7 @@ function bindListActions() {
       document.getElementById('service-price-gh').value = service.price_gh;
       document.getElementById('service-price-ng').value = service.price_ng ?? '';
       document.getElementById('service-display-order').value = service.display_order ?? '';
-      document.getElementById('service-image').value = service.image_url || '';
+      document.getElementById('service-image').value = safeExternalUrl(service.image_url) || getRequiredServiceImage(service.name);
       document.getElementById('service-active').checked = service.active;
       document.getElementById('cancel-service-edit').classList.remove('hidden');
     } else if (button.classList.contains('toggle-service') && service) {
@@ -714,6 +726,7 @@ function bindForms() {
           throw new Error('Display order must be a non-negative whole number.');
         }
         if (imageInput && !service.image_url) throw new Error('Service image URLs must use HTTPS.');
+        if (!service.image_url) throw new Error('Provide a service image URL or upload an image.');
         if (id) {
           const normalizedName = service.name.toLowerCase().replace(/\s+/g, ' ').trim();
           const duplicate = services.some((item) =>
